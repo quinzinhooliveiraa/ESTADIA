@@ -6,16 +6,35 @@ import { useToast } from '@/hooks/use-toast';
 import { useRequestOtp, useVerifyOtp } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
+import { Loader2 } from 'lucide-react';
 
 export default function Login() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [demoLoading, setDemoLoading] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const requestOtp = useRequestOtp();
   const verifyOtp = useVerifyOtp();
+
+  const handleDemo = async () => {
+    setDemoLoading(true);
+    try {
+      const res = await fetch('/api/auth/demo', { method: 'POST' });
+      if (!res.ok) throw new Error('Falha ao entrar em modo demo');
+      const data = await res.json();
+      localStorage.setItem('estadia_token', data.token);
+      setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
+      localStorage.setItem('estadia_onboarding_seen', '1');
+      setLocation('/');
+    } catch {
+      toast({ title: 'Erro', description: 'Não foi possível entrar em modo demo.', variant: 'destructive' });
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   const handlePhoneSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +117,29 @@ export default function Login() {
               >
                 {requestOtp.isPending ? 'Enviando...' : 'Receber código'}
               </Button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground uppercase tracking-widest">ou</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full h-12 font-semibold border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground hover:border-primary/60"
+                onClick={handleDemo}
+                disabled={demoLoading}
+                data-testid="button-demo"
+              >
+                {demoLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando demo...</>
+                ) : (
+                  '🚛 Experimentar modo demo'
+                )}
+              </Button>
+
               <p className="text-center text-[11px] text-muted-foreground mt-4 px-4 leading-tight">
                 Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade.
                 Seus dados estão protegidos segundo a LGPD.
