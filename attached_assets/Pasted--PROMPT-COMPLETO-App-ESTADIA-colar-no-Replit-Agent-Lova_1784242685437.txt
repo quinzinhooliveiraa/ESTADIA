@@ -1,0 +1,124 @@
+# PROMPT COMPLETO — App ESTADIA (colar no Replit Agent / Lovable)
+
+---
+
+Construa um web app mobile-first em português (Brasil) chamado **ESTADIA**, para caminhoneiros autônomos documentarem o tempo de espera em carga/descarga e gerarem cobrança de estadia com base na Lei 13.103/2015 (art. 11, §5º da Lei 11.442/07).
+
+## Contexto de negócio (importante para as decisões de UX)
+
+- Público: caminhoneiro autônomo brasileiro, usuário Android, usa o celular com uma mão, muitas vezes com sol na tela. Baixa paciência com cadastros longos.
+- A lei: o embarcador tem no máximo **5 horas** (contadas da chegada do veículo) para carregar/descarregar. Estourou o prazo, deve ao transportador **R$ 1,90 por tonelada/hora** (reajustado anualmente pelo INPC), calculado sobre **todo o tempo de espera**, não apenas o excedente.
+- O gargalo do motorista é PROVA: hora de chegada georreferenciada, tempo total e documento formal de cobrança.
+
+## Stack (toda em plano grátis no início)
+
+- **Frontend:** React + Vite, mobile-first (máx. 480px de largura útil, centralizado). PWA habilitado (manifest + service worker), mas 100% funcional no navegador sem instalar.
+- **Backend:** Supabase — auth por telefone/OTP, Postgres, storage de fotos, Edge Functions, RLS ativado em todas as tabelas.
+- **Hospedagem:** Vercel.
+- **Pagamentos:** **AbacatePay** (PIX-first). Criar cobranças PIX via API, receber confirmação por **webhook** (Supabase Edge Function como endpoint). Assinatura recorrente gerenciada no nosso banco: tabela de assinaturas com data de expiração; renovação gera nova cobrança PIX com lembrete por notificação. Cartão: fase 2.
+- **GPS:** `navigator.geolocation` nativo (sem Google Maps). Endereço por extenso via reverse geocoding do Nominatim (grátis).
+- **WhatsApp:** links `wa.me` com mensagem pré-formatada (custo zero). API oficial da Meta: fase 2.
+- **Notificações:** Web Push nativo com VAPID (grátis).
+- **PDF:** jsPDF gerado no cliente.
+
+## Modelo de dados
+
+```
+motoristas: id, telefone, nome, tipo (TAC autônomo | ETC frota), created_at
+veiculos: id, motorista_id, placa, capacidade_ton (int), tipo
+  -- tipos de referência: VUC/3-4 (~4t), Toco (~6t), Truck (~12t), Bitruck (~20t),
+  -- Carreta LS (~27t), Vanderléia (~32t), Bitrem (~40t), Rodotrem (~50t), Outro (custom)
+esperas: id, motorista_id, veiculo_id,
+  chegada_ts (server time + device time), chegada_lat, chegada_lng, chegada_precisao_m,
+  saida_ts, status (aguardando|encerrada|cobranca_gerada),
+  embarcador_nome, embarcador_cnpj (opcional), local_descricao,
+  fotos[] (urls com timestamp), tarifa_ton_hora (snapshot), valor_calculado
+cobrancas: id, espera_id, pdf_url, url_verificacao_publica, enviada_via, created_at
+assinaturas: id, motorista_id, plano (gratis|pro_mensal|pro_anual), status,
+  expira_em, abacatepay_billing_id, metodo (pix|cartao), created_at
+pagamentos: id, assinatura_id, abacatepay_charge_id, valor, status
+  (pendente|pago|falhou), pago_em
+tarifas: id, valor_ton_hora, vigente_desde  -- atualizada 1x/ano pelo INPC via painel admin
+```
+
+## Telas
+
+### 0. Onboarding (3 slides, puláveis)
+1. "Ficou parado mais de 5 horas? Eles te devem." (a lei em uma frase)
+2. "O app é sua testemunha" (GPS + registro imutável)
+3. "Cobrança pronta no WhatsApp" → botão Começar.
+
+### 1. Login por WhatsApp/SMS
+- Só o número do celular → OTP de 4-6 dígitos (Supabase phone auth). Sem e-mail, sem senha.
+- Consentimento LGPD no rodapé.
+
+### 2. Início / "CHEGUEI" (a tela mais importante)
+- Barra de cota do plano: "Plano grátis: 1 de 1 cobrança disponível este mês · Seja PRO" (link pro paywall). Se PRO: "⚡ PRO ativo — ilimitado".
+- Seleção de veículo: grade de 8 chips (VUC 4t, Toco 6t, Truck 12t, Bitruck 20t, Carreta 27t, Vanderléia 32t, Bitrem 40t, Rodotrem 50t) + campo "Outra capacidade: __ ton". Veículo salvo fica como padrão.
+- **Botão gigante amarelo "CHEGUEI"** (mín. 88px de altura). Ao tocar:
+  1. Captura GPS (lat, lng, precisão) + timestamp do dispositivo E do servidor.
+  2. Cria registro em `esperas` (status `aguardando`) — **imutável após criado**.
+  3. Navega para a contagem.
+- Offline-first: sem sinal, salva em IndexedDB e sincroniza depois (pátio de porto/fazenda não tem sinal).
+
+### 3. Contagem
+- Card do registro: hora de chegada, endereço aproximado, precisão do GPS, selo "registro imutável".
+- Cronômetro estilo odômetro (~72px, tabular), sempre calculado a partir do timestamp salvo (sobrevive a fechar o app).
+- Barra do prazo de 5h (amarela → vermelha ao estourar, com rótulo "PRAZO ESTOURADO — estadia correndo").
+- **A partir de 5h: contador de dinheiro verde** atualizado por segundo: `valor = capacidade_ton × tarifa × horas_totais`.
+- Botões: "📷 Foto do canhoto / NF-e" (câmera, múltiplas fotos com carimbo de hora), "Gerar cobrança" (habilita após 5h), "Encerrar sem estadia" (discreto).
+- Push local em 4h30 ("faltam 30 min") e 5h ("estadia começou a contar").
+
+### 4. Gate do paywall na geração
+- Plano grátis: **1 cobrança/mês**. Registro e cronômetro são SEMPRE gratuitos e ilimitados — o paywall nunca bloqueia a captura de prova, só a geração do documento.
+- Ao tentar gerar a 2ª cobrança do mês: abrir paywall com copy dinâmica citando o valor em jogo: "Essa espera vale R$ X — não deixa na mesa por R$ 19,90."
+
+### 5. Paywall
+- PRO Mensal R$ 19,90/mês e PRO Anual R$ 199/ano (destaque "2 meses grátis", equivale a R$ 16,58/mês).
+- Benefícios: cobranças ilimitadas, PDF com QR de verificação, fotos ilimitadas, histórico completo + relatório mensal, suporte prioritário no WhatsApp (anual).
+- Botões: "Assinar PRO" e "Agora não" (nunca esconder a saída).
+
+### 6. Pagamento (AbacatePay)
+- PIX como método principal: gerar cobrança na API do AbacatePay, exibir QR code + copia-e-cola, texto "confirmação automática em segundos".
+- Confirmação via webhook do AbacatePay → Edge Function atualiza `pagamentos` e ativa `assinaturas` → tela de sucesso em tempo real (Supabase Realtime ou polling).
+- Renovação: job diário checa `expira_em`; 3 dias antes, push + WhatsApp com novo PIX; vencido sem pagar, downgrade automático pro grátis (sem apagar nada).
+
+### 7. Documento de cobrança
+- Preview estilo "papel" (fundo claro): título NOTIFICAÇÃO DE COBRANÇA — ESTADIA, referência legal, tabela (motorista, chegada com GPS, saída, tempo total, capacidade, tarifa vigente, VALOR DEVIDO em destaque), parágrafo legal, miniaturas das fotos.
+- Ações: "Enviar no WhatsApp do embarcador" (wa.me com resumo + link público), "Baixar PDF" (com QR de verificação).
+- Página pública de verificação: URL única mostrando os dados originais imutáveis e o horário de registro no servidor (anti-adulteração).
+
+### 8. Histórico
+- Estatística no topo: "R$ X recuperados com o app" (soma das marcadas como pagas).
+- Lista: local, data, tempo, valor, status (pendente/pago) + ação "marcar como pago".
+
+### 9. Perfil e assinatura
+- Perfil: nome, telefone, veículos, notificações, privacidade/LGPD (exportar e excluir dados), suporte, sair.
+- Gerenciar assinatura: plano atual, status, próxima cobrança, forma de pagamento, uso do mês, trocar forma de pagamento, **cancelar** (mantém PRO até o fim do período pago, depois downgrade — nunca apagar dados).
+
+## Regras de negócio críticas
+
+1. Tarifa vem da tabela `tarifas` (não hardcoded); cada espera salva snapshot da tarifa do dia. Reajuste INPC = inserir uma linha nova por ano.
+2. Estourou 5h → valor sobre TODO o tempo de espera (da chegada até a saída).
+3. Timestamps em UTC no banco, exibidos no fuso do dispositivo. Registrar device time E server time na chegada.
+4. Registro de chegada imutável (sem UPDATE em hora/GPS) — é isso que dá valor probatório.
+5. Paywall nunca bloqueia registro/cronômetro/fotos; só a geração do documento.
+6. LGPD: consentimento de localização com explicação clara; exportação e exclusão de dados no perfil.
+7. RLS: motorista só lê/escreve os próprios dados.
+
+## Visual
+
+- Fundo asfalto `#111417`, texto `#F5F6F7`, amarelo de placa `#FFC400` (ação principal/prazo), verde dinheiro `#27C46B` (exclusivo para valores), vermelho `#FF4B3E` (prazo estourado), roxo `#7A5CFF` (badge PRO).
+- Display: Archivo Black. Cronômetro: Barlow Condensed 700 tabular. Corpo: Barlow.
+- Botões mín. 56px; contraste AA (uso sob sol); prefers-reduced-motion respeitado.
+
+## Fora do escopo do MVP
+
+- Painel B2B para transportadoras (fase 2).
+- Cartão de crédito e API oficial do WhatsApp (fase 2).
+- Apps nativos nas lojas (fase 2 — empacotar com Capacitor depois).
+- Integração NF-e/CIOT.
+
+## Critério de pronto
+
+Um motorista consegue, em menos de 3 toques a partir da abertura: registrar chegada com GPS → ver o cronômetro → (após 5h) gerar e enviar a cobrança no WhatsApp com PDF válido. E um usuário grátis que tenta a 2ª cobrança do mês vê o paywall, paga por PIX no AbacatePay e sai PRO sem sair do app.

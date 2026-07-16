@@ -3,20 +3,36 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ESTADIA API — detention time tracking and billing for truck drivers
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication via phone OTP
+  - name: profile
+    description: Driver profile
+  - name: vehicles
+    description: Vehicle management
+  - name: esperas
+    description: Waiting records (esperas)
+  - name: cobrancas
+    description: Billing documents
+  - name: subscriptions
+    description: Subscription management
+  - name: tarifas
+    description: Rate management
+  - name: public
+    description: Public verification endpoints
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +40,524 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── AUTH ────────────────────────────────────────────────────────────────
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Request OTP for phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpRequestResult"
+        "400":
+          description: Invalid phone number
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and return session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Invalid or expired OTP
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: Logged out
+
+  # ─── PROFILE ─────────────────────────────────────────────────────────────
+  /perfil:
+    get:
+      operationId: getPerfil
+      tags: [profile]
+      summary: Get current driver profile
+      responses:
+        "200":
+          description: Driver profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Motorista"
+        "401":
+          description: Not authenticated
+    put:
+      operationId: updatePerfil
+      tags: [profile]
+      summary: Update driver profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MotoristaUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Motorista"
+
+  /perfil/uso:
+    get:
+      operationId: getUsoMes
+      tags: [profile]
+      summary: Get current month usage stats
+      responses:
+        "200":
+          description: Monthly usage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsoMes"
+
+  /perfil/export:
+    get:
+      operationId: exportDados
+      tags: [profile]
+      summary: Export all user data (LGPD)
+      responses:
+        "200":
+          description: Exported data JSON
+
+  /perfil/delete:
+    delete:
+      operationId: deletePerfil
+      tags: [profile]
+      summary: Delete account and all data (LGPD)
+      responses:
+        "200":
+          description: Account deleted
+
+  # ─── VEHICLES ────────────────────────────────────────────────────────────
+  /veiculos:
+    get:
+      operationId: listVeiculos
+      tags: [vehicles]
+      summary: List all vehicles for current driver
+      responses:
+        "200":
+          description: List of vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Veiculo"
+    post:
+      operationId: createVeiculo
+      tags: [vehicles]
+      summary: Create a new vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VeiculoInput"
+      responses:
+        "201":
+          description: Created vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Veiculo"
+
+  /veiculos/{id}:
+    put:
+      operationId: updateVeiculo
+      tags: [vehicles]
+      summary: Update a vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VeiculoInput"
+      responses:
+        "200":
+          description: Updated vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Veiculo"
+    delete:
+      operationId: deleteVeiculo
+      tags: [vehicles]
+      summary: Delete a vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+
+  /veiculos/{id}/padrao:
+    patch:
+      operationId: setVeiculoPadrao
+      tags: [vehicles]
+      summary: Set vehicle as default
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Veiculo"
+
+  # ─── ESPERAS ─────────────────────────────────────────────────────────────
+  /esperas:
+    get:
+      operationId: listEsperas
+      tags: [esperas]
+      summary: List all waiting records for current driver
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [aguardando, encerrada, cobranca_gerada]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of esperas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EsperaList"
+    post:
+      operationId: createEspera
+      tags: [esperas]
+      summary: Create a new waiting record (records server timestamp)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EsperaInput"
+      responses:
+        "201":
+          description: Created espera
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Espera"
+
+  /esperas/{id}:
+    get:
+      operationId: getEspera
+      tags: [esperas]
+      summary: Get a specific waiting record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Espera details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Espera"
+
+  /esperas/{id}/encerrar:
+    patch:
+      operationId: encerrarEspera
+      tags: [esperas]
+      summary: Close a waiting record (record departure time)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncerrarEsperaInput"
+      responses:
+        "200":
+          description: Closed espera
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Espera"
+
+  /esperas/{id}/fotos:
+    post:
+      operationId: uploadFoto
+      tags: [esperas]
+      summary: Upload a photo for a waiting record (base64 encoded)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FotoInput"
+      responses:
+        "200":
+          description: Photo uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FotoResult"
+
+  /esperas/stats/resumo:
+    get:
+      operationId: getEsperasResumo
+      tags: [esperas]
+      summary: Get summary stats for current driver (total recovered, counts)
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EsperasResumo"
+
+  # ─── COBRANCAS ───────────────────────────────────────────────────────────
+  /esperas/{id}/cobranca:
+    post:
+      operationId: gerarCobranca
+      tags: [cobrancas]
+      summary: Generate billing document for a waiting record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CobrancaInput"
+      responses:
+        "201":
+          description: Generated billing document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cobranca"
+        "402":
+          description: Paywall — plan limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaywallError"
+
+  /cobrancas:
+    get:
+      operationId: listCobrancas
+      tags: [cobrancas]
+      summary: List all billing documents
+      responses:
+        "200":
+          description: List of billing documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cobranca"
+
+  /cobrancas/{id}:
+    get:
+      operationId: getCobranca
+      tags: [cobrancas]
+      summary: Get a billing document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Billing document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cobranca"
+
+  /cobrancas/{id}/marcar-pago:
+    patch:
+      operationId: marcarCobrancaPaga
+      tags: [cobrancas]
+      summary: Mark a billing document as paid
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marked as paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cobranca"
+
+  # ─── PUBLIC VERIFICATION ─────────────────────────────────────────────────
+  /public/verificar/{token}:
+    get:
+      operationId: verificarCobranca
+      tags: [public]
+      summary: Public verification page — returns immutable record data
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verified billing record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificacaoPublica"
+        "404":
+          description: Not found
+
+  # ─── SUBSCRIPTIONS ───────────────────────────────────────────────────────
+  /assinatura:
+    get:
+      operationId: getAssinatura
+      tags: [subscriptions]
+      summary: Get current subscription status
+      responses:
+        "200":
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assinatura"
+
+  /assinatura/checkout:
+    post:
+      operationId: criarCheckout
+      tags: [subscriptions]
+      summary: Create AbacatePay PIX checkout for subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutInput"
+      responses:
+        "200":
+          description: Checkout created with PIX data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResult"
+
+  /assinatura/cancelar:
+    post:
+      operationId: cancelarAssinatura
+      tags: [subscriptions]
+      summary: Cancel subscription (keeps PRO until end of paid period)
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assinatura"
+
+  /webhooks/abacatepay:
+    post:
+      operationId: abacatePayWebhook
+      tags: [subscriptions]
+      summary: AbacatePay payment webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AbacatePayWebhookPayload"
+      responses:
+        "200":
+          description: Processed
+
+  # ─── TARIFAS ─────────────────────────────────────────────────────────────
+  /tarifas/vigente:
+    get:
+      operationId: getTarifaVigente
+      tags: [tarifas]
+      summary: Get the current rate (tarifa) per ton/hour
+      responses:
+        "200":
+          description: Current rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tarifa"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +565,404 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ─── AUTH ───────────────────────────────────────────────────────────────
+    OtpRequest:
+      type: object
+      required: [telefone]
+      properties:
+        telefone:
+          type: string
+          description: Brazilian phone number with country code e.g. +5511999999999
+
+    OtpRequestResult:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    OtpVerify:
+      type: object
+      required: [telefone, codigo]
+      properties:
+        telefone:
+          type: string
+        codigo:
+          type: string
+          minLength: 4
+          maxLength: 6
+
+    AuthSession:
+      type: object
+      required: [token, motorista]
+      properties:
+        token:
+          type: string
+        motorista:
+          $ref: "#/components/schemas/Motorista"
+
+    # ─── PROFILE ────────────────────────────────────────────────────────────
+    Motorista:
+      type: object
+      required: [id, telefone, plano, created_at]
+      properties:
+        id:
+          type: string
+        telefone:
+          type: string
+        nome:
+          type: ["string", "null"]
+        tipo:
+          type: ["string", "null"]
+          enum: ["TAC autônomo", "ETC frota", null]
+        plano:
+          type: string
+          enum: [gratis, pro_mensal, pro_anual]
+        created_at:
+          type: string
+          format: date-time
+
+    MotoristaUpdate:
+      type: object
+      properties:
+        nome:
+          type: string
+        tipo:
+          type: string
+          enum: ["TAC autônomo", "ETC frota"]
+
+    UsoMes:
+      type: object
+      required: [cobrancas_geradas, limite, plano]
+      properties:
+        cobrancas_geradas:
+          type: integer
+        limite:
+          type: ["integer", "null"]
+          description: "null means unlimited (PRO)"
+        plano:
+          type: string
+
+    # ─── VEHICLES ───────────────────────────────────────────────────────────
+    Veiculo:
+      type: object
+      required: [id, motorista_id, placa, capacidade_ton, tipo, is_padrao, created_at]
+      properties:
+        id:
+          type: string
+        motorista_id:
+          type: string
+        placa:
+          type: string
+        capacidade_ton:
+          type: number
+        tipo:
+          type: string
+        is_padrao:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    VeiculoInput:
+      type: object
+      required: [placa, capacidade_ton, tipo]
+      properties:
+        placa:
+          type: string
+        capacidade_ton:
+          type: number
+        tipo:
+          type: string
+
+    # ─── ESPERAS ────────────────────────────────────────────────────────────
+    Espera:
+      type: object
+      required: [id, motorista_id, veiculo_id, chegada_ts, status, tarifa_ton_hora, created_at]
+      properties:
+        id:
+          type: string
+        motorista_id:
+          type: string
+        veiculo_id:
+          type: string
+        chegada_ts:
+          type: string
+          format: date-time
+          description: Server-recorded arrival timestamp (UTC)
+        chegada_device_ts:
+          type: ["string", "null"]
+          format: date-time
+          description: Device-reported arrival timestamp
+        chegada_lat:
+          type: ["number", "null"]
+        chegada_lng:
+          type: ["number", "null"]
+        chegada_precisao_m:
+          type: ["number", "null"]
+        chegada_endereco:
+          type: ["string", "null"]
+        saida_ts:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+          enum: [aguardando, encerrada, cobranca_gerada]
+        embarcador_nome:
+          type: ["string", "null"]
+        embarcador_cnpj:
+          type: ["string", "null"]
+        local_descricao:
+          type: ["string", "null"]
+        fotos:
+          type: array
+          items:
+            type: string
+        tarifa_ton_hora:
+          type: number
+          description: Snapshot of rate at time of record
+        valor_calculado:
+          type: ["number", "null"]
+        veiculo:
+          $ref: "#/components/schemas/Veiculo"
+        created_at:
+          type: string
+          format: date-time
+
+    EsperaInput:
+      type: object
+      required: [veiculo_id, chegada_device_ts, chegada_lat, chegada_lng]
+      properties:
+        veiculo_id:
+          type: string
+        chegada_device_ts:
+          type: string
+          format: date-time
+        chegada_lat:
+          type: number
+        chegada_lng:
+          type: number
+        chegada_precisao_m:
+          type: number
+        chegada_endereco:
+          type: string
+        embarcador_nome:
+          type: string
+        embarcador_cnpj:
+          type: string
+        local_descricao:
+          type: string
+
+    EncerrarEsperaInput:
+      type: object
+      required: [saida_ts]
+      properties:
+        saida_ts:
+          type: string
+          format: date-time
+
+    EsperaList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Espera"
+        total:
+          type: integer
+
+    EsperasResumo:
+      type: object
+      required: [total_recuperado, total_esperas, total_pagas, espera_ativa]
+      properties:
+        total_recuperado:
+          type: number
+          description: Sum of paid charges
+        total_esperas:
+          type: integer
+        total_pagas:
+          type: integer
+        espera_ativa:
+          description: Current active waiting record, if any
+          oneOf:
+            - $ref: "#/components/schemas/Espera"
+            - type: "null"
+
+    FotoInput:
+      type: object
+      required: [foto_base64, mime_type]
+      properties:
+        foto_base64:
+          type: string
+          description: Base64 encoded image data
+        mime_type:
+          type: string
+          description: e.g. image/jpeg
+
+    FotoResult:
+      type: object
+      required: [url, timestamp]
+      properties:
+        url:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # ─── COBRANCAS ──────────────────────────────────────────────────────────
+    Cobranca:
+      type: object
+      required: [id, espera_id, token_verificacao, valor, status_pagamento, created_at]
+      properties:
+        id:
+          type: string
+        espera_id:
+          type: string
+        pdf_url:
+          type: ["string", "null"]
+        token_verificacao:
+          type: string
+        url_verificacao:
+          type: string
+        valor:
+          type: number
+        status_pagamento:
+          type: string
+          enum: [pendente, pago]
+        enviada_via:
+          type: ["string", "null"]
+        espera:
+          $ref: "#/components/schemas/Espera"
+        created_at:
+          type: string
+          format: date-time
+
+    CobrancaInput:
+      type: object
+      properties:
+        embarcador_nome:
+          type: string
+        embarcador_cnpj:
+          type: string
+
+    PaywallError:
+      type: object
+      required: [error, valor_em_jogo, plano_atual]
+      properties:
+        error:
+          type: string
+        valor_em_jogo:
+          type: number
+        plano_atual:
+          type: string
+
+    VerificacaoPublica:
+      type: object
+      required: [cobranca_id, motorista_nome, chegada_ts, local, capacidade_ton, tarifa, valor, registrado_em]
+      properties:
+        cobranca_id:
+          type: string
+        motorista_nome:
+          type: string
+        chegada_ts:
+          type: string
+          format: date-time
+        saida_ts:
+          type: ["string", "null"]
+          format: date-time
+        local:
+          type: string
+        capacidade_ton:
+          type: number
+        tarifa:
+          type: number
+        valor:
+          type: number
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        registrado_em:
+          type: string
+          format: date-time
+
+    # ─── SUBSCRIPTIONS ──────────────────────────────────────────────────────
+    Assinatura:
+      type: object
+      required: [id, motorista_id, plano, status, created_at]
+      properties:
+        id:
+          type: string
+        motorista_id:
+          type: string
+        plano:
+          type: string
+          enum: [gratis, pro_mensal, pro_anual]
+        status:
+          type: string
+          enum: [ativo, cancelado, expirado]
+        expira_em:
+          type: ["string", "null"]
+          format: date-time
+        metodo:
+          type: ["string", "null"]
+          enum: [pix, cartao, null]
+        created_at:
+          type: string
+          format: date-time
+
+    CheckoutInput:
+      type: object
+      required: [plano]
+      properties:
+        plano:
+          type: string
+          enum: [pro_mensal, pro_anual]
+
+    CheckoutResult:
+      type: object
+      required: [billing_id, pix_qr_code, pix_copia_cola, valor, expira_em]
+      properties:
+        billing_id:
+          type: string
+        pix_qr_code:
+          type: string
+          description: Base64 QR code image
+        pix_copia_cola:
+          type: string
+          description: PIX copy-paste string
+        valor:
+          type: number
+        expira_em:
+          type: string
+          format: date-time
+
+    AbacatePayWebhookPayload:
+      type: object
+      required: [event, data]
+      properties:
+        event:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+
+    # ─── TARIFAS ────────────────────────────────────────────────────────────
+    Tarifa:
+      type: object
+      required: [id, valor_ton_hora, vigente_desde]
+      properties:
+        id:
+          type: string
+        valor_ton_hora:
+          type: number
+        vigente_desde:
+          type: string
+          format: date-time
