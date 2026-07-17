@@ -15,6 +15,8 @@ import {
 
 const router: IRouter = Router();
 
+const TERMOS_VERSAO = "2026-07";
+
 // ── IP-level rate limits ──────────────────────────────────────────────────────
 const requestOtpIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -34,6 +36,15 @@ const verifyOtpIpLimiter = rateLimit({
 
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// A1: mask phone for production logs
+function maskPhone(telefone: string): string {
+  const digits = telefone.replace(/\D/g, "");
+  if (digits.length >= 10) {
+    return `(${digits.slice(-11, -9)}) 9****-${digits.slice(-4)}`;
+  }
+  return telefone.slice(0, 3) + "****";
 }
 
 // POST /auth/request-otp
@@ -72,7 +83,12 @@ router.post("/auth/request-otp", requestOtpIpLimiter, async (req, res): Promise<
     attempts: 0,
   });
 
-  req.log.info({ telefone, codigo }, "OTP generated (dev — check logs)");
+  // A1: never log the OTP code in production
+  if (process.env.NODE_ENV !== "production") {
+    req.log.info({ telefone, codigo }, "OTP generated (dev — check logs)");
+  } else {
+    req.log.info({ telefone: maskPhone(telefone) }, "OTP generated");
+  }
 
   res.json({ message: `Código enviado para ${telefone}` });
 });
@@ -130,16 +146,31 @@ router.post("/auth/verify-otp", verifyOtpIpLimiter, async (req, res): Promise<vo
   // Valid — mark as used
   await db.update(otpsTable).set({ used: true }).where(eq(otpsTable.id, otp.id));
 
-  // Find or create motorista
-  let motoristas = await db
+  // Check if account was anonymized
+  const existingMotorista = await db
     .select()
     .from(motoristasTable)
     .where(eq(motoristasTable.telefone, telefone))
     .limit(1);
 
+  // If anonymized account exists with this phone (shouldn't happen after anonymization, but guard anyway)
+  if (existingMotorista.length > 0 && existingMotorista[0].anonimizado) {
+    res.status(403).json({ error: "Esta conta foi encerrada. Crie uma nova conta." });
+    return;
+  }
+
+  // Find or create motorista
+  let motoristas = existingMotorista;
+
   if (motoristas.length === 0) {
+    // B2: record terms acceptance on first login
     const newId = randomUUID();
-    await db.insert(motoristasTable).values({ id: newId, telefone });
+    await db.insert(motoristasTable).values({
+      id: newId,
+      telefone,
+      aceite_termos_ts: new Date(),
+      versao_termos: TERMOS_VERSAO,
+    });
     motoristas = await db.select().from(motoristasTable).where(eq(motoristasTable.id, newId)).limit(1);
   }
 

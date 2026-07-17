@@ -22,6 +22,10 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// A4: allowed mime types for photo uploads
+const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_FOTOS = 10;
+
 function parseEsperaFotos(fotos: string): string[] {
   try { return JSON.parse(fotos); } catch { return []; }
 }
@@ -190,17 +194,31 @@ router.patch("/esperas/:id/encerrar", requireAuth, async (req: AuthRequest, res)
 });
 
 // POST /esperas/:id/fotos
+// A4: body size limit of 8 MB is applied in app.ts via conditional middleware
 router.post("/esperas/:id/fotos", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const motoristaId = req.motoristaId!;
   const params = UploadFotoParams.safeParse(req.params);
   const body = UploadFotoBody.safeParse(req.body);
   if (!params.success || !body.success) { res.status(400).json({ error: "Dados inválidos" }); return; }
 
+  // A4: validate mime type
+  if (!ALLOWED_MIME_TYPES.has(body.data.mime_type)) {
+    res.status(400).json({ error: "Tipo de arquivo não permitido. Use JPEG, PNG ou WebP." });
+    return;
+  }
+
   const esperas = await db.select().from(esperasTable).where(and(eq(esperasTable.id, params.data.id), eq(esperasTable.motorista_id, motoristaId))).limit(1);
   if (esperas.length === 0) { res.status(404).json({ error: "Espera não encontrada" }); return; }
 
-  const dataUrl = `data:${body.data.mime_type};base64,${body.data.foto_base64}`;
   const existingFotos = parseEsperaFotos(esperas[0].fotos);
+
+  // A4: enforce maximum of 10 photos
+  if (existingFotos.length >= MAX_FOTOS) {
+    res.status(400).json({ error: `Limite de ${MAX_FOTOS} fotos por espera atingido.` });
+    return;
+  }
+
+  const dataUrl = `data:${body.data.mime_type};base64,${body.data.foto_base64}`;
   existingFotos.push(dataUrl);
 
   await db.update(esperasTable).set({ fotos: JSON.stringify(existingFotos) }).where(eq(esperasTable.id, params.data.id));

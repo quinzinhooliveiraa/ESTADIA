@@ -117,16 +117,29 @@ router.post("/assinatura/cancelar", requireAuth, async (req: AuthRequest, res): 
 
 // POST /webhooks/abacatepay
 router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
-  // ── Security: validate webhook secret ────────────────────────────────────
+  // ── A2: Security: fail-closed in production ───────────────────────────────
   const webhookSecret = process.env.ABACATEPAY_WEBHOOK_SECRET;
-  if (webhookSecret) {
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!webhookSecret) {
+    if (isProd) {
+      // A2: never process webhooks in production without a secret configured
+      logger.error("CRITICAL: ABACATEPAY_WEBHOOK_SECRET not set in production — rejecting webhook");
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // dev: skip secret validation (log warning)
+    logger.warn("ABACATEPAY_WEBHOOK_SECRET not set — skipping validation (dev only)");
+  } else {
     const incoming =
       req.headers["x-abacatepay-token"] ??
       req.headers["x-webhook-secret"] ??
       req.headers["authorization"]?.replace(/^Bearer\s+/i, "");
 
     if (!incoming || incoming !== webhookSecret) {
-      logger.warn({ headers: req.headers }, "AbacatePay webhook rejected: invalid secret");
+      // A3: log only header names (never values) and origin IP
+      const presentHeaders = Object.keys(req.headers);
+      logger.warn({ ip: req.ip, presentHeaders }, "AbacatePay webhook rejected: invalid secret");
       res.status(401).json({ error: "Unauthorized" });
       return;
     }

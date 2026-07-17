@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,12 @@ export const motoristasTable = pgTable("motoristas", {
   nome: text("nome"),
   tipo: tipoMotoristaEnum("tipo"),
   plano: planoEnum("plano").notNull().default("gratis"),
+  // LGPD: account anonymization (B1)
+  anonimizado: boolean("anonimizado").notNull().default(false),
+  anonimizado_em: timestamp("anonimizado_em", { withTimezone: true }),
+  // Terms acceptance (B2)
+  aceite_termos_ts: timestamp("aceite_termos_ts", { withTimezone: true }),
+  versao_termos: text("versao_termos"),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

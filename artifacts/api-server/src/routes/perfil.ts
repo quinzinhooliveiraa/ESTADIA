@@ -10,7 +10,8 @@ import {
   sessionsTable,
   otpsTable,
 } from "@workspace/db";
-import { eq, and, gte, count, sum } from "drizzle-orm";
+import { eq, and, gte, count, inArray } from "drizzle-orm";
+import { createHash } from "crypto";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import { UpdatePerfilBody } from "@workspace/api-zod";
 
@@ -89,7 +90,6 @@ router.get("/perfil/uso", requireAuth, async (req: AuthRequest, res): Promise<vo
 
   const plano = motoristas[0].plano;
 
-  // Count charges generated this calendar month
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -102,16 +102,6 @@ router.get("/perfil/uso", requireAuth, async (req: AuthRequest, res): Promise<vo
 
   let cobrancasCount = 0;
   if (ids.length > 0) {
-    const result = await db
-      .select({ count: count() })
-      .from(cobrancasTable)
-      .where(
-        and(
-          eq(cobrancasTable.espera_id, ids[0]),
-          gte(cobrancasTable.created_at, startOfMonth)
-        )
-      );
-    // Re-query properly for all espera IDs
     const allResult = await db
       .select({ count: count() })
       .from(cobrancasTable)
@@ -146,13 +136,62 @@ router.get("/perfil/export", requireAuth, async (req: AuthRequest, res): Promise
 });
 
 // DELETE /perfil/delete
+// B1: LGPD-compliant anonymization — financial records retained for 5 years
 router.delete("/perfil/delete", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const motoristaId = req.motoristaId!;
 
-  // Cascade delete via FK constraints
-  await db.delete(motoristasTable).where(eq(motoristasTable.id, motoristaId));
+  // Fetch motorista to get phone for OTP cleanup
+  const motoristas = await db
+    .select()
+    .from(motoristasTable)
+    .where(eq(motoristasTable.id, motoristaId))
+    .limit(1);
 
-  res.json({ message: "Conta excluída com sucesso" });
+  if (motoristas.length === 0) {
+    res.status(404).json({ error: "Motorista não encontrado" });
+    return;
+  }
+
+  const { telefone } = motoristas[0];
+
+  // 1. Get all espera IDs to clean up cobrancas
+  const esperaRows = await db
+    .select({ id: esperasTable.id })
+    .from(esperasTable)
+    .where(eq(esperasTable.motorista_id, motoristaId));
+
+  const esperaIds = esperaRows.map((e) => e.id);
+
+  // 2. Delete cobrancas linked to this motorista's esperas (not financial records)
+  if (esperaIds.length > 0) {
+    await db.delete(cobrancasTable).where(inArray(cobrancasTable.espera_id, esperaIds));
+  }
+
+  // 3. Delete esperas (includes embedded fotos JSON)
+  await db.delete(esperasTable).where(eq(esperasTable.motorista_id, motoristaId));
+
+  // 4. Delete veiculos
+  await db.delete(veiculosTable).where(eq(veiculosTable.motorista_id, motoristaId));
+
+  // 5. Delete sessions
+  await db.delete(sessionsTable).where(eq(sessionsTable.motorista_id, motoristaId));
+
+  // 6. Delete OTPs by phone number
+  await db.delete(otpsTable).where(eq(otpsTable.telefone, telefone));
+
+  // 7. Anonymize motorista — DO NOT delete (assinaturas/pagamentos reference it)
+  const phoneHash = createHash("sha256").update(telefone).digest("hex").slice(0, 12);
+  await db
+    .update(motoristasTable)
+    .set({
+      nome: null,
+      telefone: `anon_${phoneHash}`,
+      anonimizado: true,
+      anonimizado_em: new Date(),
+    })
+    .where(eq(motoristasTable.id, motoristaId));
+
+  res.json({ message: "Conta encerrada. Registros financeiros retidos por obrigação legal (5 anos)." });
 });
 
 export default router;

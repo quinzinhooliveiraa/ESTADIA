@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, Link } from 'wouter';
 import { AppLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -7,6 +7,9 @@ import { useRequestOtp, useVerifyOtp } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { Loader2 } from 'lucide-react';
+
+// D5: demo button only when VITE_DEMO_MODE=true
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 export default function Login() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -42,10 +45,9 @@ export default function Login() {
       toast({ title: 'Telefone inválido', description: 'Digite um número válido com DDD.', variant: 'destructive' });
       return;
     }
-    
-    // Auto-prefix with +55 if not present
+
     const formattedPhone = phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`;
-    
+
     requestOtp.mutate(
       { data: { telefone: formattedPhone } },
       {
@@ -71,7 +73,6 @@ export default function Login() {
       {
         onSuccess: (data) => {
           localStorage.setItem('estadia_token', data.token);
-          // Update the custom-fetch auth getter immediately
           setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
           setLocation('/');
         },
@@ -107,41 +108,54 @@ export default function Login() {
                 autoFocus
               />
             </div>
-            
+
             <div className="mt-auto pb-6">
-              <Button 
+              <Button
                 type="submit"
-                size="lg" 
+                size="lg"
                 className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={requestOtp.isPending}
               >
                 {requestOtp.isPending ? 'Enviando...' : 'Receber código'}
               </Button>
 
-              <div className="flex items-center gap-3 my-5">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground uppercase tracking-widest">ou</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
+              {/* D5: demo button behind VITE_DEMO_MODE flag */}
+              {DEMO_MODE && (
+                <>
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs text-muted-foreground uppercase tracking-widest">ou</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                className="w-full h-12 font-semibold border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground hover:border-primary/60"
-                onClick={handleDemo}
-                disabled={demoLoading}
-                data-testid="button-demo"
-              >
-                {demoLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando demo...</>
-                ) : (
-                  '🚛 Experimentar modo demo'
-                )}
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="w-full h-12 font-semibold border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground hover:border-primary/60"
+                    onClick={handleDemo}
+                    disabled={demoLoading}
+                    data-testid="button-demo"
+                  >
+                    {demoLoading ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando demo...</>
+                    ) : (
+                      '🚛 Experimentar modo demo'
+                    )}
+                  </Button>
+                </>
+              )}
 
+              {/* B2 / C3: terms links */}
               <p className="text-center text-[11px] text-muted-foreground mt-4 px-4 leading-tight">
-                Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade.
+                Ao continuar, você concorda com os{' '}
+                <Link href="/termos" className="underline underline-offset-2 hover:text-foreground">
+                  Termos de Uso
+                </Link>{' '}
+                e a{' '}
+                <Link href="/privacidade" className="underline underline-offset-2 hover:text-foreground">
+                  Política de Privacidade
+                </Link>.
                 Seus dados estão protegidos segundo a LGPD.
               </p>
             </div>
@@ -163,19 +177,19 @@ export default function Login() {
                 autoFocus
               />
             </div>
-            
+
             <div className="mt-auto pb-6">
-              <Button 
+              <Button
                 type="submit"
-                size="lg" 
+                size="lg"
                 className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={verifyOtp.isPending || otp.length < 4}
               >
                 {verifyOtp.isPending ? 'Verificando...' : 'Entrar'}
               </Button>
-              <Button 
+              <Button
                 type="button"
-                variant="ghost" 
+                variant="ghost"
                 className="w-full mt-2 text-muted-foreground"
                 onClick={() => setStep('phone')}
               >

@@ -1,0 +1,100 @@
+# PROMPT RODADA 2 — Segurança, Jurídico e Pendências (colar no Replit Agent)
+
+---
+
+Faça APENAS as correções listadas, nesta ordem. NÃO refatore nem altere nada fora da lista — o timer, a imutabilidade da chegada, o gate do paywall, o fluxo de OTP e o design atual estão corretos e devem permanecer como estão.
+
+## BLOCO A — Segurança (primeiro)
+
+### A1. OTP fora do log em produção
+Em `routes/auth.ts`, o log `req.log.info({ telefone, codigo }, ...)` expõe o código de login. Só logar o `codigo` quando `process.env.NODE_ENV !== "production"`. Em produção, logar apenas `{ telefone }` mascarado (ex.: `(13) 9****-2211`).
+
+### A2. Webhook fail-closed
+Em `routes/assinaturas.ts`, hoje a validação só roda `if (webhookSecret)`. Se `NODE_ENV === "production"` e `ABACATEPAY_WEBHOOK_SECRET` não estiver definido, responder 401 e logar erro crítico — nunca processar.
+
+### A3. Não logar headers no webhook
+No log de webhook rejeitado, remover `{ headers: req.headers }`. Logar apenas IP de origem e quais nomes de header estavam presentes — nunca valores.
+
+### A4. Consertar upload de fotos (hoje quebrado)
+`express.json()` global limita o body a 100 KB — qualquer foto real (1-4 MB em base64) falha com 413.
+- Manter o limite global padrão para todas as rotas.
+- Na rota `POST /esperas/:id/fotos`, aplicar `express.json({ limit: "8mb" })` específico.
+- Validar `mime_type` contra lista: `image/jpeg`, `image/png`, `image/webp` (400 se outro).
+- Máximo de 10 fotos por espera (400 ao exceder).
+
+### A5. CORS restrito + helmet
+- `cors({ origin: process.env.APP_ORIGIN?.split(",") ?? true })` — em dev continua aberto; em produção usa a variável.
+- Adicionar `helmet()` no app.
+- Incluir `APP_ORIGIN` no `.env.example`.
+
+## BLOCO B — Jurídico técnico
+
+### B1. Exclusão de conta: anonimizar, não apagar financeiro
+Registros financeiros devem ser retidos por 5 anos por obrigação legal. Alterar `DELETE /perfil/delete`:
+- Apagar de verdade: esperas, cobranças, fotos, veículos, sessões, OTPs.
+- Em `motoristas`: NÃO deletar a linha; anonimizar (`nome: null`, `telefone: "anon_" + hash`, flag `anonimizado: true`, `anonimizado_em: timestamp`).
+- Manter intactas: `assinaturas` e `pagamentos` (vinculadas ao id anonimizado).
+- Usuário anonimizado não consegue mais logar.
+
+### B2. Registro de aceite dos termos
+- Colunas novas em `motoristas`: `aceite_termos_ts` (timestamp) e `versao_termos` (text).
+- No fluxo de cadastro (primeiro login), gravar o aceite com a versão atual (constante `TERMOS_VERSAO = "2026-07"`).
+- No login, frase existente "Ao continuar você concorda com os Termos de Uso e a Política de Privacidade" com links para as páginas do Bloco C.
+
+### B3. Rodapé de identificação no documento de cobrança
+Adicionar ao final do documento (tela e futuro PDF): "Documento gerado eletronicamente pelo transportador por meio da plataforma ESTADIA, com registro georreferenciado de chegada. Verifique a autenticidade em [url_verificacao]."
+
+### B4. Data da tarifa no documento
+Onde exibe "Tarifa Vigente: R$ X/ton/hora", incluir a data: "Tarifa vigente em DD/MM/AAAA — Lei 13.103/2015, reajuste anual pelo INPC" (usar `vigente_desde` da tabela `tarifas`, já snapshotada na espera).
+
+### B5. Dica do comprovante da portaria
+Na tela de espera (contagem), abaixo do card de registro, incluir aviso discreto mas visível: "📄 Peça na portaria o comprovante de chegada — o embarcador é obrigado por lei a fornecer (multa de até 5% do valor da carga se recusar)."
+
+## BLOCO C — Páginas legais
+
+### C1. Termos de Uso (`/termos`)
+Página estática no app, linguagem simples, cobrindo: o que o serviço faz (documenta, calcula e gera documentos de cobrança de estadia com base na Lei 13.103/2015); o que NÃO faz (não garante recebimento; não é assessoria jurídica; os registros são elementos de prova, sem garantia de resultado); planos e preços; renovação automática informada; cancelamento a qualquer momento com PRO mantido até o fim do período pago; direito de arrependimento de 7 dias (art. 49 CDC) com reembolso integral; responsabilidades do usuário (dados verdadeiros); foro e contato.
+
+### C2. Política de Privacidade (`/privacidade`)
+Cobrindo: dados coletados (telefone, nome, veículos, localização no momento do CHEGUEI, fotos anexadas); finalidade (gerar registro probatório e documentos de cobrança); base legal (execução de contrato e consentimento para localização); compartilhamento (o documento só é enviado a terceiros pelo próprio usuário); retenção (dados de conta até exclusão; registros financeiros por 5 anos, anonimizados); direitos LGPD (acesso, exportação e exclusão — apontar para as funções já existentes no perfil); contato do controlador.
+
+### C3. Links
+Adicionar links para /termos e /privacidade no login e no perfil.
+
+## BLOCO D — Pendências de produto
+
+### D1. PDF real da cobrança
+Gerar o PDF no cliente com jsPDF ao tocar "Baixar PDF": mesmo conteúdo do documento em tela (cabeçalho, tabela, valor em destaque, referência legal, rodapé do B3, data da tarifa do B4, miniaturas das fotos, QR code apontando para a url_verificacao — usar lib `qrcode`). Nome do arquivo: `cobranca-estadia-DDMMAAAA.pdf`.
+
+### D2. Mensagem do WhatsApp completa
+A mensagem atual só tem placa + valor + link. Novo formato:
+"NOTIFICAÇÃO DE COBRANÇA — ESTADIA (Lei 13.103/15)
+Veículo: [placa] ([capacidade] ton)
+Chegada: [data hora] (registro GPS)
+Tempo total de espera: [Xh Ymin]
+Cálculo: [ton] × R$ [tarifa] × horas
+VALOR DEVIDO: R$ [valor]
+Documento e verificação de autenticidade: [url_verificacao]"
+
+### D3. Tela explicativa antes da permissão de GPS
+No primeiro CHEGUEI, antes de disparar o prompt nativo de localização, exibir um passo intermediário: "Precisamos da sua localização só pra provar onde e quando você chegou. Sem isso, não tem como gerar a prova." + botão "Permitir localização". Se o usuário negar no prompt nativo, mostrar instrução de como reativar nas configurações do navegador (não um erro seco).
+
+### D4. PWA mínimo
+- `manifest.json`: nome ESTADIA, tema #111417, ícones 192 e 512 (gerar a partir do favicon: fundo asfalto, "E" amarelo em Archivo Black).
+- Service worker simples (cache dos assets estáticos; sem lógica offline complexa nesta rodada).
+- Meta `og:image`: gerar imagem estática 1200×630 (fundo asfalto, contador verde estilizado, frase "Ficou parado mais de 5h? Eles te devem.") e referenciar no index.html.
+
+### D5. Botão demo atrás de flag
+No login, o botão de demo só aparece quando `import.meta.env.VITE_DEMO_MODE === "true"`. Adicionar ao `.env.example`.
+
+## Critérios de aceite
+
+- Em produção sem `ABACATEPAY_WEBHOOK_SECRET`: webhook responde 401.
+- Log de produção não contém código OTP nem headers de webhook.
+- Upload de foto de 3 MB funciona; 11ª foto e mime inválido retornam 400.
+- Excluir conta: pagamentos permanecem no banco; motorista fica anonimizado; login do número excluído deixa de funcionar.
+- Documento em tela e PDF trazem rodapé de identificação + data da tarifa.
+- /termos e /privacidade acessíveis sem login.
+- "Baixar PDF" gera arquivo com QR funcional apontando para a página de verificação.
+- Mensagem do WhatsApp contém chegada, tempo total e cálculo.
+- Primeiro CHEGUEI mostra a explicação antes do prompt nativo de GPS.

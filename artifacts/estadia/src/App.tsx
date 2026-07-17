@@ -16,22 +16,27 @@ import Cobranca from '@/pages/cobranca';
 import Verificar from '@/pages/verificar';
 import Historico from '@/pages/historico';
 import Perfil from '@/pages/perfil';
+import Termos from '@/pages/termos';
+import Privacidade from '@/pages/privacidade';
 
 const queryClient = new QueryClient();
 
 // Initial token setup
 setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
 
+// Public paths that don't require authentication
+const PUBLIC_PATHS = ['/verificar', '/termos', '/privacidade'];
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  
+
   useEffect(() => {
     const token = localStorage.getItem('estadia_token');
     const seenOnboarding = localStorage.getItem('estadia_onboarding_seen');
-    
+
     // Allow public routes
-    if (location.startsWith('/verificar')) return;
-    
+    if (PUBLIC_PATHS.some(p => location.startsWith(p))) return;
+
     if (!token) {
       if (!seenOnboarding && location !== '/onboarding') {
         setLocation('/onboarding');
@@ -57,6 +62,9 @@ function Router() {
       <Route path="/verificar/:token" component={Verificar} />
       <Route path="/historico" component={Historico} />
       <Route path="/perfil" component={Perfil} />
+      {/* C1, C2: legal pages — public, no auth required */}
+      <Route path="/termos" component={Termos} />
+      <Route path="/privacidade" component={Privacidade} />
       <Route component={NotFound} />
     </Switch>
   );

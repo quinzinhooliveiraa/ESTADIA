@@ -11,7 +11,7 @@ import {
   useCreateEspera,
   useGetEsperasResumo,
 } from '@workspace/api-client-react';
-import { Truck, MapPin, Loader2 } from 'lucide-react';
+import { Truck, MapPin, Loader2, Navigation, X } from 'lucide-react';
 
 const CAPACITY_CHIPS = [
   { label: 'VUC',        tons: 4  },
@@ -36,12 +36,15 @@ export default function Home() {
   const createEspera = useCreateEspera();
   const createVeiculo = useCreateVeiculo();
 
-  // Selected from existing vehicles list
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
-  // Provisional chip selection (no registered vehicle)
   const [provisionalChip, setProvisionalChip] = useState<{ label: string; tons: number } | null>(null);
   const [customTons, setCustomTons] = useState('');
   const [loadingGps, setLoadingGps] = useState(false);
+
+  // D3: GPS explainer state
+  const [showGpsExplainer, setShowGpsExplainer] = useState(false);
+  const [gpsDenied, setGpsDenied] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   const hasVehicles = !veiculosLoading && veiculos && veiculos.length > 0;
 
@@ -93,45 +96,55 @@ export default function Home() {
       },
       () => {
         setLoadingGps(false);
-        toast({ title: 'Erro de GPS', description: 'Ative a localização para registrar a estadia.', variant: 'destructive' });
+        setGpsDenied(true);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
-  const handleCheguei = () => {
+  // D3: build the actual action and gate it behind the GPS explainer on first use
+  const buildAndRunCheguei = () => {
     if (hasVehicles) {
       if (!selectedVehicleId) {
         toast({ title: 'Selecione um veículo', variant: 'destructive' });
         return;
       }
       doCreateEspera(selectedVehicleId);
-      return;
-    }
-
-    // Provisional: create vehicle silently then start espera
-    const tons = resolvedTons;
-    if (!tons || tons <= 0) {
-      toast({ title: 'Selecione a capacidade do veículo', variant: 'destructive' });
-      return;
-    }
-
-    setLoadingGps(true);
-    createVeiculo.mutate({
-      data: {
-        capacidade_ton: tons,
-        tipo: provisionalChip?.label ?? 'Outro',
-        placa: '',
+    } else {
+      const tons = resolvedTons;
+      if (!tons || tons <= 0) {
+        toast({ title: 'Selecione a capacidade do veículo', variant: 'destructive' });
+        return;
       }
-    }, {
-      onSuccess: (veiculo) => {
-        doCreateEspera(veiculo.id);
-      },
-      onError: () => {
-        setLoadingGps(false);
-        toast({ title: 'Erro ao registrar veículo', variant: 'destructive' });
-      }
-    });
+      setLoadingGps(true);
+      createVeiculo.mutate({
+        data: { capacidade_ton: tons, tipo: provisionalChip?.label ?? 'Outro', placa: '' }
+      }, {
+        onSuccess: (veiculo) => { doCreateEspera(veiculo.id); },
+        onError: () => {
+          setLoadingGps(false);
+          toast({ title: 'Erro ao registrar veículo', variant: 'destructive' });
+        }
+      });
+    }
+  };
+
+  const handleCheguei = () => {
+    const explained = localStorage.getItem('estadia_gps_explained');
+    if (!explained) {
+      // D3: capture pending action and show explainer before asking GPS
+      setPendingAction(() => buildAndRunCheguei);
+      setShowGpsExplainer(true);
+    } else {
+      buildAndRunCheguei();
+    }
+  };
+
+  const handleAllowGps = () => {
+    localStorage.setItem('estadia_gps_explained', '1');
+    setShowGpsExplainer(false);
+    pendingAction?.();
+    setPendingAction(null);
   };
 
   const isPro = perfil?.plano === 'pro_mensal' || perfil?.plano === 'pro_anual';
@@ -199,7 +212,6 @@ export default function Home() {
               </div>
             </div>
           ) : !veiculosLoading ? (
-            /* ── Quick capacity chips (first-time user) ───────────── */
             <div className="mb-8">
               <h2 className="text-lg font-bold mb-1">Qual a capacidade do seu veículo?</h2>
               <p className="text-xs text-muted-foreground mb-4">Você pode completar o cadastro depois.</p>
@@ -233,6 +245,24 @@ export default function Home() {
             </div>
           ) : null}
 
+          {/* D3: GPS denied instructions */}
+          {gpsDenied && (
+            <div className="mb-4 bg-destructive/10 border border-destructive/30 rounded-xl p-4">
+              <p className="text-sm font-semibold text-destructive mb-1">Localização bloqueada</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Para reativar: toque no ícone de cadeado ou configurações na barra do navegador e permita o acesso à localização para este site.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full text-xs"
+                onClick={() => { setGpsDenied(false); buildAndRunCheguei(); }}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+
           {/* ── CHEGUEI button ───────────────────────────────────── */}
           <Button
             size="lg"
@@ -256,6 +286,50 @@ export default function Home() {
           </Button>
         </div>
       </div>
+
+      {/* D3: GPS permission explainer modal */}
+      {showGpsExplainer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card border border-card-border rounded-t-3xl p-6 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Navigation className="w-6 h-6 text-primary" />
+              </div>
+              <button
+                onClick={() => { setShowGpsExplainer(false); setPendingAction(null); }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <h2 className="text-xl font-display text-foreground mb-2">Por que precisamos da sua localização?</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+              Precisamos da sua localização <strong className="text-foreground">só para provar onde e quando você chegou</strong>.
+              Sem isso, não tem como gerar a prova legal — a lei exige o registro georreferenciado de chegada.
+            </p>
+            <p className="text-xs text-muted-foreground mb-6 bg-secondary rounded-lg p-3 leading-relaxed">
+              📍 A localização é capturada <strong>apenas no momento do CHEGUEI</strong> e nunca em segundo plano.
+            </p>
+
+            <Button
+              size="lg"
+              className="w-full h-14 text-base font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleAllowGps}
+            >
+              <Navigation className="w-4 h-4 mr-2" />
+              Permitir localização e registrar
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full mt-2 text-muted-foreground"
+              onClick={() => { setShowGpsExplainer(false); setPendingAction(null); }}
+            >
+              Agora não
+            </Button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

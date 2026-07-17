@@ -187,7 +187,18 @@ export default function Perfil() {
         </div>
 
         <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 px-1 mt-4">Privacidade (LGPD)</h3>
-        
+
+        {/* C3: links to legal pages */}
+        <div className="flex gap-3 mb-3 px-1">
+          <button onClick={() => setLocation('/termos')} className="text-xs text-primary underline underline-offset-2 hover:text-primary/80">
+            Termos de Uso
+          </button>
+          <span className="text-xs text-muted-foreground/40">·</span>
+          <button onClick={() => setLocation('/privacidade')} className="text-xs text-primary underline underline-offset-2 hover:text-primary/80">
+            Política de Privacidade
+          </button>
+        </div>
+
         <div className="bg-card border border-border rounded-xl p-2 mb-8">
           <Button 
             variant="ghost" 
