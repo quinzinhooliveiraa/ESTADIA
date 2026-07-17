@@ -174,9 +174,17 @@ export default function Espera() {
                   PRAZO ESTOURADO — estadia correndo
                 </div>
               ) : (
-                <div className="text-muted-foreground text-sm font-medium">
-                  Prazo de 5 horas: {format2(4 - horas)}:{format2(59 - minutos)} restantes
-                </div>
+                (() => {
+                  const remainingMs = Math.max(0, 5 * 60 * 60 * 1000 - diffMs);
+                  const remH = Math.floor(remainingMs / (1000 * 60 * 60));
+                  const remM = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                  const remS = Math.floor((remainingMs % (1000 * 60)) / 1000);
+                  return (
+                    <div className="text-muted-foreground text-sm font-medium">
+                      Prazo de 5h: <span className="font-timer">{format2(remH)}:{format2(remM)}:{format2(remS)}</span> restantes
+                    </div>
+                  );
+                })()
               )}
             </div>
 

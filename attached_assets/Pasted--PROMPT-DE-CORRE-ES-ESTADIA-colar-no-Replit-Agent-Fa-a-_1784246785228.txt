@@ -1,0 +1,66 @@
+# PROMPT DE CORREÇÕES — ESTADIA (colar no Replit Agent)
+
+---
+
+Faça APENAS as correções listadas abaixo, nesta ordem. NÃO refatore, NÃO reestruture e NÃO altere nada que não esteja listado — o timer, a imutabilidade da chegada, o gate do paywall no servidor e o design atual estão corretos e devem permanecer exatamente como estão.
+
+## P0 — Segurança de pagamento (fazer primeiro)
+
+### 1. Proteger o webhook do AbacatePay
+Hoje `POST /webhooks/abacatepay` aceita qualquer requisição — qualquer usuário que fizer checkout recebe o `billing_id` na resposta e pode ativar o próprio PRO postando `{"event":"billing.paid","data":{"id":"..."}}` sem pagar.
+- Validar autenticidade: exigir o secret do AbacatePay (header/token de webhook configurado no painel deles) via variável de ambiente `ABACATEPAY_WEBHOOK_SECRET`; rejeitar com 401 se ausente ou inválido.
+- Defesa extra: antes de ativar o plano, consultar a API do AbacatePay (`GET billing` pelo id) e só ativar se o status real for pago. Enquanto a integração real não existir, deixar esse check atrás de flag `ABACATEPAY_LIVE=true`.
+
+### 2. Assinatura nasce PENDENTE, não ativa
+No `POST /assinatura/checkout`, a assinatura é criada com `status: "ativo"` e `expira_em` já preenchido antes de qualquer pagamento.
+- Criar com `status: "pendente"` e `expira_em: null`.
+- No webhook (pagamento confirmado): mudar para `ativo` e calcular `expira_em` a partir da data do PAGAMENTO (não do checkout).
+- `GET /assinatura` deve tratar `pendente` como plano grátis para efeitos de UI e do gate.
+
+### 3. Idempotência no webhook
+Se o mesmo evento `billing.paid` chegar duas vezes, hoje insere pagamento duplicado.
+- Antes de inserir em `pagamentos`, verificar se já existe registro com o mesmo `abacatepay_charge_id`; se existir, responder `{ok: true}` sem fazer nada.
+- Adicionar constraint UNIQUE em `pagamentos.abacatepay_charge_id`.
+
+## P1 — Segurança de acesso
+
+### 4. Rate limit e limite de tentativas no OTP
+- `POST /auth/verify-otp`: máximo 5 tentativas por OTP (adicionar coluna `attempts` em `otps`; incrementar a cada erro; ao atingir 5, marcar `used: true` e exigir novo código).
+- `POST /auth/request-otp`: máximo 3 solicitações por telefone a cada 15 minutos.
+- Rate limit geral por IP nas duas rotas (ex.: `express-rate-limit`).
+
+### 5. Rota demo fora de produção
+`POST /auth/demo` cria conta e devolve token sem autenticação.
+- Se `process.env.NODE_ENV === "production"` e `DEMO_MODE !== "true"`, responder 404.
+
+## P2 — UX (primeira experiência)
+
+### 6. CHEGUEI sem cadastro prévio de veículo
+Hoje o usuário novo é obrigado a ir ao perfil cadastrar veículo antes de poder usar o botão CHEGUEI. Isso cria fricção exatamente no momento crítico (ele está parado no pátio AGORA).
+- Na home, quando não houver veículo cadastrado, exibir chips rápidos de capacidade: VUC 4t, Toco 6t, Truck 12t, Bitruck 20t, Carreta 27t, Vanderléia 32t, Bitrem 40t, Rodotrem 50t + campo "outra: __ ton".
+- Selecionou um chip → CHEGUEI habilita imediatamente; criar veículo provisório (`placa: null`, `tipo` e `capacidade_ton` do chip) por baixo dos panos.
+- Depois de encerrar a primeira espera, sugerir (sem obrigar) completar a placa no perfil.
+
+### 7. Endereço por extenso na chegada (geocoding reverso)
+Hoje a espera só guarda lat/long e a UI fica em "Buscando endereço...". Ao criar a espera (`POST /esperas`), o servidor deve fazer geocoding reverso na API pública do Nominatim (`https://nominatim.openstreetmap.org/reverse?lat=...&lon=...&format=json`, header User-Agent identificando o app) e salvar rua/bairro/cidade/UF em `chegada_endereco`.
+- Fazer de forma não-bloqueante: criar a espera imediatamente e preencher o endereço em seguida (a criação do registro nunca pode esperar ou falhar por causa do geocoding).
+- Exibir endereço + coordenadas + precisão na tela e no documento (o endereço é para leitura; as coordenadas continuam sendo a prova).
+
+### 8. Contagem regressiva do prazo com segundos
+Na tela de espera, o texto "Prazo de 5 horas: H:MM restantes" não mostra segundos e o cálculo `4 - horas / 59 - minutos` quebra visualmente em bordas (ex.: exatamente 5h). Exibir `HH:MM:SS` restantes calculado como `max(0, 5h - decorrido)`.
+
+## P3 — Preparação para produção (não implementar integrações reais ainda, só deixar pronto)
+
+### 9. Variáveis de ambiente documentadas
+Criar `.env.example` com: `DATABASE_URL`, `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET`, `ABACATEPAY_LIVE`, `DEMO_MODE`, `NODE_ENV`.
+
+### 10. Meta tags
+No `index.html`: description "Registre sua chegada com GPS e cobre a estadia que a lei garante. Lei 13.103/15." + og:title/og:description equivalentes (o link vai circular no WhatsApp).
+
+## Critério de aceite
+
+- Reproduzir o exploit do item 1 (POST manual no webhook com billing_id próprio) deve falhar com 401.
+- Webhook duplicado não cria pagamento duplicado.
+- Usuário com checkout gerado e não pago continua no plano grátis em TODAS as rotas.
+- 6 tentativas erradas de OTP invalidam o código.
+- Usuário novo consegue apertar CHEGUEI em menos de 10 segundos após o login, sem passar pelo perfil.

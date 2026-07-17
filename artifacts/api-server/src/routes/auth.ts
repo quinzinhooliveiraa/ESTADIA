@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
+import rateLimit from "express-rate-limit";
 import { db } from "@workspace/db";
 import {
   motoristasTable,
   sessionsTable,
   otpsTable,
 } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, gte, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   RequestOtpBody,
@@ -14,12 +15,29 @@ import {
 
 const router: IRouter = Router();
 
+// ── IP-level rate limits ──────────────────────────────────────────────────────
+const requestOtpIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas solicitações. Tente novamente em 15 minutos." },
+});
+
+const verifyOtpIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas tentativas. Tente novamente em 15 minutos." },
+});
+
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // POST /auth/request-otp
-router.post("/auth/request-otp", async (req, res): Promise<void> => {
+router.post("/auth/request-otp", requestOtpIpLimiter, async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Número de telefone inválido" });
@@ -28,31 +46,39 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
 
   const { telefone } = parsed.data;
 
-  // Invalidate old OTPs for this phone
-  await db
-    .update(otpsTable)
-    .set({ used: true })
-    .where(eq(otpsTable.telefone, telefone));
+  // Per-phone rate limit: max 3 requests per 15 min
+  const windowStart = new Date(Date.now() - 15 * 60 * 1000);
+  const recentCount = await db
+    .select({ count: count() })
+    .from(otpsTable)
+    .where(and(eq(otpsTable.telefone, telefone), gte(otpsTable.created_at, windowStart)));
+
+  if ((recentCount[0]?.count ?? 0) >= 3) {
+    res.status(429).json({ error: "Limite de 3 códigos por 15 minutos atingido. Aguarde antes de solicitar outro." });
+    return;
+  }
+
+  // Invalidate old OTPs
+  await db.update(otpsTable).set({ used: true }).where(eq(otpsTable.telefone, telefone));
 
   const codigo = generateOtp();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   await db.insert(otpsTable).values({
     id: randomUUID(),
     telefone,
     codigo,
     expires_at: expiresAt,
+    attempts: 0,
   });
 
-  // In production, send via SMS provider
-  // For now, log to console (development only)
-  req.log.info({ telefone, codigo }, "OTP generated (dev mode — check logs)");
+  req.log.info({ telefone, codigo }, "OTP generated (dev — check logs)");
 
   res.json({ message: `Código enviado para ${telefone}` });
 });
 
 // POST /auth/verify-otp
-router.post("/auth/verify-otp", async (req, res): Promise<void> => {
+router.post("/auth/verify-otp", verifyOtpIpLimiter, async (req, res): Promise<void> => {
   const parsed = VerifyOtpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Dados inválidos" });
@@ -61,14 +87,13 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   const { telefone, codigo } = parsed.data;
 
-  // Find valid OTP
+  // Find the latest valid (not used, not expired) OTP for this phone
   const otps = await db
     .select()
     .from(otpsTable)
     .where(
       and(
         eq(otpsTable.telefone, telefone),
-        eq(otpsTable.codigo, codigo),
         eq(otpsTable.used, false),
         gt(otpsTable.expires_at, new Date())
       )
@@ -76,15 +101,34 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     .limit(1);
 
   if (otps.length === 0) {
-    res.status(401).json({ error: "Código inválido ou expirado" });
+    res.status(401).json({ error: "Código inválido ou expirado. Solicite um novo." });
     return;
   }
 
-  // Mark OTP as used
-  await db
-    .update(otpsTable)
-    .set({ used: true })
-    .where(eq(otpsTable.id, otps[0].id));
+  const otp = otps[0];
+
+  // Check attempt limit (max 5)
+  if (otp.attempts >= 5) {
+    await db.update(otpsTable).set({ used: true }).where(eq(otpsTable.id, otp.id));
+    res.status(401).json({ error: "Muitas tentativas. Solicite um novo código." });
+    return;
+  }
+
+  if (otp.codigo !== codigo) {
+    // Increment attempts
+    const newAttempts = otp.attempts + 1;
+    if (newAttempts >= 5) {
+      await db.update(otpsTable).set({ used: true, attempts: newAttempts }).where(eq(otpsTable.id, otp.id));
+      res.status(401).json({ error: "Código incorreto. Limite de tentativas atingido — solicite um novo código." });
+    } else {
+      await db.update(otpsTable).set({ attempts: newAttempts }).where(eq(otpsTable.id, otp.id));
+      res.status(401).json({ error: `Código incorreto. ${5 - newAttempts} tentativa(s) restante(s).` });
+    }
+    return;
+  }
+
+  // Valid — mark as used
+  await db.update(otpsTable).set({ used: true }).where(eq(otpsTable.id, otp.id));
 
   // Find or create motorista
   let motoristas = await db
@@ -95,20 +139,11 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   if (motoristas.length === 0) {
     const newId = randomUUID();
-    await db.insert(motoristasTable).values({
-      id: newId,
-      telefone,
-    });
-    motoristas = await db
-      .select()
-      .from(motoristasTable)
-      .where(eq(motoristasTable.id, newId))
-      .limit(1);
+    await db.insert(motoristasTable).values({ id: newId, telefone });
+    motoristas = await db.select().from(motoristasTable).where(eq(motoristasTable.id, newId)).limit(1);
   }
 
   const motorista = motoristas[0];
-
-  // Create session (30 days)
   const token = randomUUID() + "-" + randomUUID();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -135,7 +170,7 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 // POST /auth/logout
 router.post("/auth/logout", async (req, res): Promise<void> => {
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
+  if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     await db.delete(sessionsTable).where(eq(sessionsTable.token, token));
   }

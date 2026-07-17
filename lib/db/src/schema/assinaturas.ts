@@ -9,6 +9,7 @@ import { z } from "zod/v4";
 import { motoristasTable } from "./motoristas";
 
 export const statusAssinaturaEnum = pgEnum("status_assinatura", [
+  "pendente",
   "ativo",
   "cancelado",
   "expirado",
@@ -31,7 +32,7 @@ export const assinaturasTable = pgTable("assinaturas", {
     .notNull()
     .references(() => motoristasTable.id, { onDelete: "cascade" }),
   plano: planoAssinaturaEnum("plano").notNull(),
-  status: statusAssinaturaEnum("status").notNull().default("ativo"),
+  status: statusAssinaturaEnum("status").notNull().default("pendente"),
   expira_em: timestamp("expira_em", { withTimezone: true }),
   abacatepay_billing_id: text("abacatepay_billing_id"),
   metodo: metodoAssinaturaEnum("metodo"),

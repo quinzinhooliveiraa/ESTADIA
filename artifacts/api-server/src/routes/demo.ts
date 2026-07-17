@@ -6,7 +6,6 @@ import {
   esperasTable,
   cobrancasTable,
   sessionsTable,
-  tarifasTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -16,9 +15,15 @@ const router: IRouter = Router();
 const DEMO_PHONE = "+5511900000000";
 const TARIFA = 1.9;
 
-// POST /auth/demo — creates (or resets) the demo account and returns a token
+// POST /auth/demo — creates (or resets) the demo account and returns a token.
+// Disabled in production unless DEMO_MODE=true.
 router.post("/auth/demo", async (req, res): Promise<void> => {
-  // ── 1. Find or create the demo motorista ──────────────────────────────────
+  if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  // ── 1. Find or create demo motorista ────────────────────────────────────
   let motoristas = await db
     .select()
     .from(motoristasTable)
@@ -38,7 +43,6 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
     });
   } else {
     motoristaId = motoristas[0].id;
-    // Reset to gratis for demo
     await db
       .update(motoristasTable)
       .set({ nome: "João Silva", plano: "gratis" })
@@ -74,7 +78,8 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
       },
     ]);
   } else {
-    veiculoId = existingVeiculos.find((v) => v.is_padrao)?.id ?? existingVeiculos[0].id;
+    veiculoId =
+      existingVeiculos.find((v) => v.is_padrao)?.id ?? existingVeiculos[0].id;
   }
 
   // ── 3. Seed historical esperas (only once) ───────────────────────────────
@@ -84,11 +89,11 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
     .where(eq(esperasTable.motorista_id, motoristaId));
 
   if (existingEsperas.length === 0) {
-    // Espera 1: encerrada e paga — 7 horas no porto de Santos (2 semanas atrás)
     const espera1Id = randomUUID();
     const chegada1 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const saida1 = new Date(chegada1.getTime() + 7 * 60 * 60 * 1000);
-    const valor1 = Math.round(27 * TARIFA * 7 * 100) / 100; // R$ 358,20
+    const valor1 = Math.round(27 * TARIFA * 7 * 100) / 100;
+
     await db.insert(esperasTable).values({
       id: espera1Id,
       motorista_id: motoristaId,
@@ -109,27 +114,19 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
       valor_calculado: valor1,
     });
 
-    const token1 = randomUUID().replace(/-/g, "");
-    const cobranca1Id = randomUUID();
     await db.insert(cobrancasTable).values({
-      id: cobranca1Id,
+      id: randomUUID(),
       espera_id: espera1Id,
-      token_verificacao: token1,
+      token_verificacao: randomUUID().replace(/-/g, ""),
       valor: valor1,
       status_pagamento: "pago",
     });
 
-    // Update espera status
-    await db
-      .update(esperasTable)
-      .set({ status: "cobranca_gerada" })
-      .where(eq(esperasTable.id, espera1Id));
-
-    // Espera 2: encerrada e cobrança pendente — 6.5 horas em Campinas (5 dias atrás)
     const espera2Id = randomUUID();
     const chegada2 = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
     const saida2 = new Date(chegada2.getTime() + 6.5 * 60 * 60 * 1000);
-    const valor2 = Math.round(27 * TARIFA * 6.5 * 100) / 100; // R$ 333,45
+    const valor2 = Math.round(27 * TARIFA * 6.5 * 100) / 100;
+
     await db.insert(esperasTable).values({
       id: espera2Id,
       motorista_id: motoristaId,
@@ -150,19 +147,18 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
       valor_calculado: valor2,
     });
 
-    const token2 = randomUUID().replace(/-/g, "");
     await db.insert(cobrancasTable).values({
       id: randomUUID(),
       espera_id: espera2Id,
-      token_verificacao: token2,
+      token_verificacao: randomUUID().replace(/-/g, ""),
       valor: valor2,
       status_pagamento: "pendente",
     });
 
-    // Espera 3: encerrada sem estadia (menos de 5h) — ontem
     const espera3Id = randomUUID();
     const chegada3 = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
     const saida3 = new Date(chegada3.getTime() + 3.5 * 60 * 60 * 1000);
+
     await db.insert(esperasTable).values({
       id: espera3Id,
       motorista_id: motoristaId,
@@ -182,8 +178,7 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
     });
   }
 
-  // ── 4. Issue a fresh session token ───────────────────────────────────────
-  // Revoke any existing demo sessions first
+  // ── 4. Issue fresh session (revoke old ones) ─────────────────────────────
   const oldSessions = await db
     .select()
     .from(sessionsTable)
@@ -193,16 +188,13 @@ router.post("/auth/demo", async (req, res): Promise<void> => {
   }
 
   const token = `demo-${randomUUID()}-${randomUUID()}`;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
   await db.insert(sessionsTable).values({
     id: randomUUID(),
     motorista_id: motoristaId,
     token,
-    expires_at: expiresAt,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
-  // ── 5. Return session in the same shape as /auth/verify-otp ─────────────
   const m = (
     await db
       .select()

@@ -13,10 +13,16 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-const PRECOS = {
+const PRECOS: Record<string, number> = {
   pro_mensal: 19.9,
   pro_anual: 199.0,
 };
+
+function isActivePlan(assinatura: typeof assinaturasTable.$inferSelect): boolean {
+  if (assinatura.status !== "ativo") return false;
+  if (assinatura.expira_em && assinatura.expira_em < new Date()) return false;
+  return true;
+}
 
 // GET /assinatura
 router.get("/assinatura", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -29,37 +35,21 @@ router.get("/assinatura", requireAuth, async (req: AuthRequest, res): Promise<vo
     .limit(1);
 
   if (assinaturas.length === 0) {
-    // Return a default free plan record
-    res.json({
-      id: "gratis",
-      motorista_id: motoristaId,
-      plano: "gratis",
-      status: "ativo",
-      expira_em: null,
-      metodo: null,
-      created_at: new Date().toISOString(),
-    });
+    res.json({ id: "gratis", motorista_id: motoristaId, plano: "gratis", status: "ativo", expira_em: null, metodo: null, created_at: new Date().toISOString() });
     return;
   }
 
-  // Check if expired
   const assinatura = assinaturas[0];
-  if (assinatura.expira_em && assinatura.expira_em < new Date() && assinatura.status === "ativo") {
-    // Auto-downgrade
-    await db
-      .update(assinaturasTable)
-      .set({ status: "expirado" })
-      .where(eq(assinaturasTable.id, assinatura.id));
 
-    await db
-      .update(motoristasTable)
-      .set({ plano: "gratis" })
-      .where(eq(motoristasTable.id, motoristaId));
-
+  // Auto-expire check
+  if (assinatura.status === "ativo" && assinatura.expira_em && assinatura.expira_em < new Date()) {
+    await db.update(assinaturasTable).set({ status: "expirado" }).where(eq(assinaturasTable.id, assinatura.id));
+    await db.update(motoristasTable).set({ plano: "gratis" }).where(eq(motoristasTable.id, motoristaId));
     res.json({ ...assinatura, status: "expirado" });
     return;
   }
 
+  // pendente treated as gratis in UI — signal it but don't change the record
   res.json(assinatura);
 });
 
@@ -75,32 +65,26 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
   const { plano } = parsed.data;
   const valor = PRECOS[plano];
 
-  // In production: call AbacatePay API to create charge
-  // For now: return a mock PIX response for development
   const billingId = randomUUID();
-  const expiraEm = new Date(Date.now() + 30 * 60 * 1000); // 30 min
-
-  // Store pending assinatura
   const assinaturaId = randomUUID();
+
+  // Start PENDING — only activate after webhook confirms payment
   await db.insert(assinaturasTable).values({
     id: assinaturaId,
     motorista_id: motoristaId,
-    plano,
-    status: "ativo",
+    plano: plano as any,
+    status: "pendente",
+    expira_em: null,          // set only after confirmed payment
     abacatepay_billing_id: billingId,
     metodo: "pix",
-    expira_em: plano === "pro_anual"
-      ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   });
 
-  // Mock PIX QR code (in production, get from AbacatePay response)
+  // Mock PIX QR (replaced by real AbacatePay response in production)
   const pixCopiaCola = `00020126580014BR.GOV.BCB.PIX0136${randomUUID()}5204000053039865802BR5925ESTADIA TECH LTDA6009SAO PAULO62070503***6304${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
-
-  // Simple mock QR code as 1x1 base64 PNG (in production, get from AbacatePay)
   const mockQrBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const expiraEm = new Date(Date.now() + 30 * 60 * 1000);
 
-  logger.info({ motoristaId, plano, billingId }, "Checkout created");
+  logger.info({ motoristaId, plano, billingId }, "Checkout created (pending)");
 
   res.json({
     billing_id: billingId,
@@ -126,25 +110,28 @@ router.post("/assinatura/cancelar", requireAuth, async (req: AuthRequest, res): 
     return;
   }
 
-  const assinatura = assinaturas[0];
-
-  // Mark as cancelled — keeps PRO until expiry date
-  await db
-    .update(assinaturasTable)
-    .set({ status: "cancelado" })
-    .where(eq(assinaturasTable.id, assinatura.id));
-
-  const updated = await db
-    .select()
-    .from(assinaturasTable)
-    .where(eq(assinaturasTable.id, assinatura.id))
-    .limit(1);
-
+  await db.update(assinaturasTable).set({ status: "cancelado" }).where(eq(assinaturasTable.id, assinaturas[0].id));
+  const updated = await db.select().from(assinaturasTable).where(eq(assinaturasTable.id, assinaturas[0].id)).limit(1);
   res.json(updated[0]);
 });
 
 // POST /webhooks/abacatepay
 router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
+  // ── Security: validate webhook secret ────────────────────────────────────
+  const webhookSecret = process.env.ABACATEPAY_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const incoming =
+      req.headers["x-abacatepay-token"] ??
+      req.headers["x-webhook-secret"] ??
+      req.headers["authorization"]?.replace(/^Bearer\s+/i, "");
+
+    if (!incoming || incoming !== webhookSecret) {
+      logger.warn({ headers: req.headers }, "AbacatePay webhook rejected: invalid secret");
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+  }
+
   const parsed = AbacatePayWebhookBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Payload inválido" });
@@ -155,33 +142,77 @@ router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
   logger.info({ event, billingId: data?.id }, "AbacatePay webhook received");
 
   if (event === "billing.paid" && data?.id) {
-    // Find assinatura by billing_id
+    const chargeId = data.id as string;
+
+    // ── Idempotency: skip if already processed ────────────────────────────
+    const existing = await db
+      .select()
+      .from(pagamentosTable)
+      .where(eq(pagamentosTable.abacatepay_charge_id, chargeId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      logger.info({ chargeId }, "Webhook duplicate — ignoring");
+      res.json({ ok: true });
+      return;
+    }
+
+    // ── Optional live verification via AbacatePay API ─────────────────────
+    if (process.env.ABACATEPAY_LIVE === "true") {
+      try {
+        const apiKey = process.env.ABACATEPAY_API_KEY;
+        const verifyRes = await fetch(`https://api.abacatepay.com/v1/billing/${chargeId}`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (!verifyRes.ok) throw new Error("Verify request failed");
+        const billing: any = await verifyRes.json();
+        if (billing?.data?.status !== "PAID") {
+          logger.warn({ chargeId, status: billing?.data?.status }, "Webhook: billing not paid per API");
+          res.json({ ok: true });
+          return;
+        }
+      } catch (err) {
+        logger.error({ err, chargeId }, "AbacatePay live verify failed");
+        res.status(500).json({ error: "Verification failed" });
+        return;
+      }
+    }
+
+    // ── Activate subscription ─────────────────────────────────────────────
     const assinaturas = await db
       .select()
       .from(assinaturasTable)
-      .where(eq(assinaturasTable.abacatepay_billing_id, data.id as string))
+      .where(eq(assinaturasTable.abacatepay_billing_id, chargeId))
       .limit(1);
 
     if (assinaturas.length > 0) {
       const assinatura = assinaturas[0];
+      const pagoEm = new Date();
+      const expiraEm =
+        assinatura.plano === "pro_anual"
+          ? new Date(pagoEm.getTime() + 365 * 24 * 60 * 60 * 1000)
+          : new Date(pagoEm.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      // Update motorista's plan
+      await db
+        .update(assinaturasTable)
+        .set({ status: "ativo", expira_em: expiraEm })
+        .where(eq(assinaturasTable.id, assinatura.id));
+
       await db
         .update(motoristasTable)
         .set({ plano: assinatura.plano as any })
         .where(eq(motoristasTable.id, assinatura.motorista_id));
 
-      // Record payment
       await db.insert(pagamentosTable).values({
         id: randomUUID(),
         assinatura_id: assinatura.id,
-        abacatepay_charge_id: data.id as string,
-        valor: PRECOS[assinatura.plano as keyof typeof PRECOS] ?? 0,
+        abacatepay_charge_id: chargeId,
+        valor: PRECOS[assinatura.plano] ?? 0,
         status: "pago",
-        pago_em: new Date(),
+        pago_em: pagoEm,
       });
 
-      logger.info({ assinaturaId: assinatura.id }, "Subscription activated via webhook");
+      logger.info({ assinaturaId: assinatura.id, expiraEm }, "Subscription activated");
     }
   }
 
