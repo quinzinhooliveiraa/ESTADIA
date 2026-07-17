@@ -7,6 +7,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Replit (and most PaaS) terminate TLS at a reverse proxy; trust one hop
+// so express-rate-limit can read the real client IP from X-Forwarded-For.
+app.set("trust proxy", 1);
+
 // A5: security headers
 app.use(helmet());
 

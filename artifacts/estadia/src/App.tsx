@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useEffect } from 'react';
-import { setAuthTokenGetter } from '@workspace/api-client-react';
+import { setAuthTokenGetter, ApiError } from '@workspace/api-client-react';
 
 import Onboarding from '@/pages/onboarding';
 import Login from '@/pages/login';
@@ -20,7 +20,38 @@ import Termos from '@/pages/termos';
 import Privacidade from '@/pages/privacidade';
 import Admin from '@/pages/admin';
 
-const queryClient = new QueryClient();
+function handleUnauthorized() {
+  localStorage.removeItem('estadia_token');
+  // Navigate to login without a full page reload
+  window.location.replace(
+    import.meta.env.BASE_URL.replace(/\/$/, '') + '/login'
+  );
+}
+
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) handleUnauthorized();
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) handleUnauthorized();
+    },
+  }),
+  defaultOptions: {
+    queries: {
+      // Don't retry on 401 — a new request won't fix an invalid/expired token
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status === 401) return false;
+        return failureCount < 3;
+      },
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
 // Initial token setup
 setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
