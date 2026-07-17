@@ -55,6 +55,7 @@ export interface Motorista {
   /** @nullable */
   tipo?: MotoristaTipo;
   plano: MotoristaPlano;
+  is_admin: boolean;
   created_at: string;
 }
 

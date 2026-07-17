@@ -38,6 +38,7 @@ router.get("/perfil", requireAuth, async (req: AuthRequest, res): Promise<void> 
     nome: m.nome,
     tipo: m.tipo,
     plano: m.plano,
+    is_admin: m.is_admin,
     created_at: m.created_at,
   });
 });

@@ -69,6 +69,7 @@ export const GetPerfilResponse = zod.object({
   "nome": zod.string().nullish(),
   "tipo": zod.union([zod.literal('TAC autônomo'),zod.literal('ETC frota'),zod.literal(null)]).nullish(),
   "plano": zod.enum(['gratis', 'pro_mensal', 'pro_anual']),
+  "is_admin": zod.boolean(),
   "created_at": zod.coerce.date()
 })
 
