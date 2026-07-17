@@ -10,7 +10,11 @@ export interface OtpSender {
 
 export class DevLogSender implements OtpSender {
   async send(telefone: string, codigo: string): Promise<void> {
-    logger.info({ telefone, codigo }, "OTP generated (dev — check logs)");
+    const isProd = process.env.NODE_ENV === "production";
+    logger.info(
+      isProd ? { telefone } : { telefone, codigo },
+      "OTP generated (dev — check logs)",
+    );
   }
 }
 
@@ -65,6 +69,14 @@ export function createOtpSender(): OtpSender {
     return new TwilioSmsSender(sid, token, from);
   }
 
-  logger.info("OTP sender: DevLog (Twilio env vars not set)");
+  if (process.env.NODE_ENV === "production") {
+    logger.error(
+      "OTP sender: CRÍTICO — credenciais Twilio ausentes em produção. " +
+        "Defina TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN e TWILIO_FROM_NUMBER. " +
+        "O envio de OTP está INOPERANTE.",
+    );
+  } else {
+    logger.info("OTP sender: DevLog (Twilio env vars not set)");
+  }
   return new DevLogSender();
 }
