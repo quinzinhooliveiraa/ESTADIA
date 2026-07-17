@@ -1,6 +1,6 @@
-# [Project name]
+# ESTADIA
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+App para motoristas cobrarem estadia (tempo de espera) garantida pela Lei 13.103/2015. Registra chegadas com GPS, calcula valores e gera cobranças documentadas.
 
 ## Run & Operate
 
@@ -10,6 +10,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` — SMS OTP (DevLog fallback used when absent)
+- Optional env: `ADMIN_TELEFONES` — comma-separated E.164 phones that get is_admin=true on next login
 
 ## Stack
 

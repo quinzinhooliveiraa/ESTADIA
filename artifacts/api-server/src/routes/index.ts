@@ -9,6 +9,7 @@ import cobrancasRouter from "./cobrancas";
 import assinaturasRouter from "./assinaturas";
 import tarifasRouter from "./tarifas";
 import publicRouter from "./public";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(cobrancasRouter);
 router.use(assinaturasRouter);
 router.use(tarifasRouter);
 router.use(publicRouter);
+router.use(adminRouter);
 
 export default router;

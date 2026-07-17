@@ -12,6 +12,21 @@ import {
   RequestOtpBody,
   VerifyOtpBody,
 } from "@workspace/api-zod";
+import { createOtpSender } from "../lib/otp-sender";
+
+// Instantiate once at startup
+const otpSender = createOtpSender();
+
+// Admin phone list from env (comma-separated E.164 numbers)
+function getAdminPhones(): Set<string> {
+  const raw = process.env.ADMIN_TELEFONES ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
 
 const router: IRouter = Router();
 
@@ -82,6 +97,20 @@ router.post("/auth/request-otp", requestOtpIpLimiter, async (req, res): Promise<
     expires_at: expiresAt,
     attempts: 0,
   });
+
+  // Format phone to E.164 for SMS (assume Brazilian numbers if not already prefixed)
+  let e164 = telefone;
+  if (!e164.startsWith("+")) {
+    const digits = e164.replace(/\D/g, "");
+    e164 = digits.length === 13 ? `+${digits}` : `+55${digits}`;
+  }
+
+  try {
+    await otpSender.send(e164, codigo);
+  } catch {
+    res.status(502).json({ error: "Não conseguimos enviar o código, tente de novo." });
+    return;
+  }
 
   // A1: never log the OTP code in production
   if (process.env.NODE_ENV !== "production") {
@@ -175,6 +204,19 @@ router.post("/auth/verify-otp", verifyOtpIpLimiter, async (req, res): Promise<vo
   }
 
   const motorista = motoristas[0];
+
+  // Promote to admin if phone is in ADMIN_TELEFONES list
+  const adminPhones = getAdminPhones();
+  const shouldBeAdmin = adminPhones.has(telefone) || adminPhones.has(
+    telefone.startsWith("+") ? telefone : `+55${telefone.replace(/\D/g, "")}`,
+  );
+  if (shouldBeAdmin && !motorista.is_admin) {
+    await db
+      .update(motoristasTable)
+      .set({ is_admin: true })
+      .where(eq(motoristasTable.id, motorista.id));
+    motorista.is_admin = true;
+  }
   const token = randomUUID() + "-" + randomUUID();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -193,6 +235,7 @@ router.post("/auth/verify-otp", verifyOtpIpLimiter, async (req, res): Promise<vo
       nome: motorista.nome,
       tipo: motorista.tipo,
       plano: motorista.plano,
+      is_admin: motorista.is_admin,
       created_at: motorista.created_at,
     },
   });

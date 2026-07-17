@@ -1,0 +1,64 @@
+# PROMPT — Painel Admin ESTADIA + 2 pendências (colar no Replit Agent)
+
+---
+
+Implemente o que está listado abaixo. NÃO altere nada fora da lista.
+
+## Parte 1 — Pendências da rodada anterior
+
+### P1. og:image em PNG
+O `og:image` atual aponta para `/og-image.svg` — WhatsApp e Facebook NÃO renderizam SVG em preview de link. Converter a arte para PNG 1200×630 (`/og-image.png`), atualizar a meta tag e adicionar `og:image:type` = `image/png`.
+
+### P2. Envio real de OTP (Twilio SMS)
+O código OTP é gerado e salvo mas nunca enviado. Implementar atrás de uma interface `OtpSender` com duas implementações:
+- `TwilioSmsSender`: envia SMS via API da Twilio usando `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (env). Mensagem: "ESTADIA: seu código é {codigo}. Válido por 10 minutos."
+- `DevLogSender`: comportamento atual (log fora de produção).
+Selecionar automaticamente: se as 3 variáveis TWILIO_* existirem, usa Twilio; senão, DevLog. Falha de envio → responder 502 com mensagem amigável ("Não conseguimos enviar o código, tente de novo"). Adicionar as variáveis ao `.env.example`. Telefones em formato E.164 (+55...) na hora do envio.
+
+## Parte 2 — Painel Admin
+
+### Acesso
+- Coluna `is_admin` (boolean, default false) em `motoristas`. Promover via env `ADMIN_TELEFONES` (lista separada por vírgula): no login, se o telefone estiver na lista, setar `is_admin = true`.
+- Middleware `requireAdmin` (sessão válida + is_admin). Todas as rotas novas sob `/admin/*` protegidas por ele. Usuário comum que acessar recebe 404 (não 403 — não revelar que a área existe).
+- Frontend: rota `/admin` (sem link em nenhum menu — acesso direto por URL). Se não-admin, redirecionar pra home.
+
+### Tela 1 — Dashboard (a principal)
+KPIs em cards no topo:
+- Cadastros: total / últimos 7 dias / hoje
+- Esperas: total, **ativas agora**, % que estouraram as 5h, tempo médio de espera
+- Cobranças: quantidade gerada, valor total documentado (R$), valor marcado como pago (R$ recuperado pelos usuários)
+- Assinaturas: usuários grátis vs PRO, **MRR** (mensais ativos × 19,90 + anuais ativos × 199/12), pagamentos pendentes
+- Funil de conversão: cadastros → fizeram 1ª espera → geraram 1ª cobrança → viraram PRO (número e %)
+
+Gráfico simples de barras (últimos 30 dias): cadastros/dia e esperas/dia.
+
+Endpoint: `GET /admin/metrics` retornando tudo agregado em uma chamada (queries SQL agregadas, não loops).
+
+### Tela 2 — Usuários
+- `GET /admin/motoristas?busca=&offset=` — lista paginada (20/página), busca por telefone ou nome.
+- Colunas: nome, telefone, plano, nº de esperas, nº de cobranças, cadastrado em, último login.
+- Detalhe ao clicar: veículos, esperas com status/valores, assinatura e pagamentos. **Somente leitura** — admin não edita dados de usuário nesta versão.
+
+### Tela 3 — Tarifas
+- Listar histórico da tabela `tarifas` (valor, vigente_desde).
+- Formulário para inserir nova tarifa (valor + data de vigência) com confirmação dupla exibindo o impacto: "Novas esperas usarão R$ X,XX/ton/hora. Esperas antigas não mudam (snapshot)."
+- `POST /admin/tarifas` (requireAdmin).
+
+### Tela 4 — Pagamentos
+- Lista dos últimos pagamentos: data, telefone (mascarado: (13) 9****-2211), plano, valor, status, charge_id.
+- Filtro por status. Somente leitura.
+
+### Visual
+Mesma identidade do app (asfalto/amarelo), porém denso e utilitário: tabelas compactas, sem animações. Desktop-first (o admin será acessado no computador), mas legível no celular.
+
+### Segurança do painel
+- Nenhum dado sensível além do necessário: telefones mascarados em TODAS as listas (completo apenas na tela de detalhe do usuário).
+- Rate limit nas rotas /admin.
+- Log de auditoria mínimo: tabela `admin_logs` (admin_id, ação, timestamp) registrando inserção de tarifa.
+
+## Critérios de aceite
+- Telefone em ADMIN_TELEFONES vira admin no próximo login; /admin abre; usuário comum recebe 404 na API e redirect no front.
+- Dashboard carrega com uma chamada e mostra MRR e funil corretos.
+- Inserir tarifa nova exige confirmação e aparece em admin_logs.
+- Link do app compartilhado no WhatsApp mostra a imagem de preview (PNG).
+- Com credenciais TWILIO_* configuradas, o código chega por SMS; sem elas, comportamento dev inalterado.

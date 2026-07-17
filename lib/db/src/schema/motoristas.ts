@@ -15,6 +15,8 @@ export const motoristasTable = pgTable("motoristas", {
   nome: text("nome"),
   tipo: tipoMotoristaEnum("tipo"),
   plano: planoEnum("plano").notNull().default("gratis"),
+  // Admin flag — set automatically on login when phone is in ADMIN_TELEFONES
+  is_admin: boolean("is_admin").notNull().default(false),
   // LGPD: account anonymization (B1)
   anonimizado: boolean("anonimizado").notNull().default(false),
   anonimizado_em: timestamp("anonimizado_em", { withTimezone: true }),

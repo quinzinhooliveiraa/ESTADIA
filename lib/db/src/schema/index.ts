@@ -7,3 +7,4 @@ export * from "./pagamentos";
 export * from "./tarifas";
 export * from "./sessions";
 export * from "./otps";
+export * from "./admin-logs";

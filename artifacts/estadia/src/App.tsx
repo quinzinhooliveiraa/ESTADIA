@@ -18,6 +18,7 @@ import Historico from '@/pages/historico';
 import Perfil from '@/pages/perfil';
 import Termos from '@/pages/termos';
 import Privacidade from '@/pages/privacidade';
+import Admin from '@/pages/admin';
 
 const queryClient = new QueryClient();
 
@@ -25,7 +26,7 @@ const queryClient = new QueryClient();
 setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
 
 // Public paths that don't require authentication
-const PUBLIC_PATHS = ['/verificar', '/termos', '/privacidade'];
+const PUBLIC_PATHS = ['/verificar', '/termos', '/privacidade', '/admin'];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -65,6 +66,8 @@ function Router() {
       {/* C1, C2: legal pages — public, no auth required */}
       <Route path="/termos" component={Termos} />
       <Route path="/privacidade" component={Privacidade} />
+      {/* Admin panel — access by direct URL only, no menu link */}
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
