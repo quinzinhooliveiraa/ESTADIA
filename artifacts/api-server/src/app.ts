@@ -1,3 +1,4 @@
+import path from "path";
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -53,5 +54,25 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// ── Production: serve frontend static files + SPA fallback ────────────────
+if (process.env.NODE_ENV === "production") {
+  // Default path: <repo-root>/artifacts/estadia/dist/public
+  // __dirname is set by the esbuild banner to the bundle's directory
+  // (artifacts/api-server/dist), so two levels up lands at the repo root.
+  const staticDir =
+    process.env.STATIC_DIR ??
+    path.resolve(__dirname, "..", "..", "estadia", "dist", "public");
+
+  app.use(express.static(staticDir));
+
+  // SPA fallback — serve index.html for any route that isn't /api or /webhooks
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/webhooks")) {
+      return next();
+    }
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+}
 
 export default app;
