@@ -67,7 +67,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(staticDir));
 
   // SPA fallback — serve index.html for any route that isn't /api or /webhooks
-  app.get("*", (req, res, next) => {
+  app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/webhooks")) {
       return next();
     }
