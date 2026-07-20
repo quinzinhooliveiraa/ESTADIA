@@ -218,7 +218,7 @@ router.post("/auth/verify-otp", verifyOtpIpLimiter, async (req, res): Promise<vo
     motorista.is_admin = true;
   }
   const token = randomUUID() + "-" + randomUUID();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
   await db.insert(sessionsTable).values({
     id: randomUUID(),
