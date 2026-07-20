@@ -6,6 +6,7 @@ import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useEffect } from 'react';
 import { setAuthTokenGetter, ApiError } from '@workspace/api-client-react';
 
+import { InAppBrowserGate } from '@/components/InAppBrowserGate';
 import Onboarding from '@/pages/onboarding';
 import Login from '@/pages/login';
 import Home from '@/pages/home';
@@ -108,11 +109,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AuthGuard>
-            <Router />
-          </AuthGuard>
-        </WouterRouter>
+        <InAppBrowserGate>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <AuthGuard>
+              <Router />
+            </AuthGuard>
+          </WouterRouter>
+        </InAppBrowserGate>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
