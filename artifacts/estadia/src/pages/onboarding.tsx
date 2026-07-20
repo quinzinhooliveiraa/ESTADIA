@@ -18,19 +18,19 @@ export default function Onboarding() {
       icon: <Truck className="w-16 h-16 text-primary mb-6" />,
       title: "Ficou parado mais de 5 horas?",
       subtitle: "Eles te devem.",
-      description: "A lei 13.103 é clara. Tempo de espera é tempo de trabalho. Não deixe seu dinheiro na mesa.",
+      description: "Passou de 5 horas esperando? O embarcador tem que pagar pela hora parada. É lei (13.103/2015).",
     },
     {
       icon: <MapPin className="w-16 h-16 text-primary mb-6" />,
       title: "O app é sua testemunha",
       subtitle: "GPS + registro imutável",
-      description: "Chegou no cliente? Aperte um botão. O app registra a hora e o local exato com GPS. Não tem como eles negarem.",
+      description: "Chegou pra carregar ou descarregar? Aperte um botão. O app registra a hora e o local exato com GPS. Com prova de GPS, fica muito difícil negarem.",
     },
     {
       icon: <CheckCircle2 className="w-16 h-16 text-primary mb-6" />,
       title: "Cobrança pronta no WhatsApp",
       subtitle: "Fácil e rápido",
-      description: "Geramos um PDF oficial com a cobrança baseada na tabela ANTT. É só mandar pro embarcador.",
+      description: "Geramos um PDF oficial com a cobrança com base na Lei 13.103, com a tarifa oficial por tonelada/hora (reajustada pelo INPC). É só mandar pro embarcador.",
     }
   ];
 

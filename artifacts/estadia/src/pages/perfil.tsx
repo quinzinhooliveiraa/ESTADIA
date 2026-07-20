@@ -218,7 +218,7 @@ export default function Perfil() {
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-[360px] rounded-2xl bg-card border-card-border">
               <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogTitle>Cancelar sua assinatura?</AlertDialogTitle>
                 <AlertDialogDescription className="text-muted-foreground">
                   Essa ação não pode ser desfeita. Todos os seus dados, históricos de espera e cobranças serão apagados para sempre.
                 </AlertDialogDescription>
