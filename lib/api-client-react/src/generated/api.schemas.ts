@@ -297,6 +297,8 @@ export interface CheckoutInput {
 
 export interface CheckoutResult {
   billing_id: string;
+  /** True when a real AbacatePay charge was created; false in mock/dev mode */
+  is_live?: boolean;
   /** Base64 QR code image */
   pix_qr_code: string;
   /** PIX copy-paste string */

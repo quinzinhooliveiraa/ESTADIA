@@ -676,7 +676,9 @@ export const CriarCheckoutResponse = zod.object({
   "pix_qr_code": zod.string().describe('Base64 QR code image'),
   "pix_copia_cola": zod.string().describe('PIX copy-paste string'),
   "valor": zod.number(),
-  "expira_em": zod.coerce.date()
+  "expira_em": zod.coerce.date(),
+  /** True when a real AbacatePay charge was created; false in mock/dev mode */
+  "is_live": zod.boolean().optional()
 })
 
 
