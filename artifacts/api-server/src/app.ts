@@ -46,6 +46,9 @@ app.use(
 
 // A4: photo route gets 8 MB; everything else gets the default 100 KB.
 // Capture raw body for webhook HMAC-SHA256 signature verification.
+// NOTE: the `verify` callback runs unconditionally for every request (no path
+// filter), so rawBody is available for both /api/webhooks/abacatepay and the
+// alias /webhooks/abacatepay mounted below.
 app.use((req, res, next) => {
   const isFotosRoute =
     req.method === "POST" &&
@@ -59,7 +62,15 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true }));
 
+// Primary API mount (all routes under /api).
 app.use("/api", router);
+
+// Alias mount so that /webhooks/abacatepay (without the /api prefix) reaches
+// the same handler that is registered at /api/webhooks/abacatepay inside the
+// router. This lets the AbacatePay dashboard webhook URL stay without /api.
+// All other routes in the router that match here are harmless (they require
+// auth and will return 401 for unauthenticated callers).
+app.use(router);
 
 // ── Production: serve frontend static files + SPA fallback ────────────────
 if (process.env.NODE_ENV === "production") {
