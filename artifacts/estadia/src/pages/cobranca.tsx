@@ -41,8 +41,22 @@ export default function Cobranca() {
   // B3: identification footer text
   const rodapeTexto = `Documento gerado eletronicamente pelo transportador por meio da plataforma ESTADIA, com registro georreferenciado de chegada. Verifique a autenticidade em ${cobranca.url_verificacao}`;
 
+  // Guard: require motorista name before generating any document
+  const guardNome = (): boolean => {
+    if (!cobranca.motorista_nome) {
+      toast({
+        title: 'Informe seu nome antes de continuar',
+        description: 'Acesse seu Perfil, preencha o nome completo e volte aqui.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return true;
+  };
+
   // D2: complete WhatsApp message
   const handleWhatsApp = () => {
+    if (!guardNome()) return;
     const placa = cobranca.espera?.veiculo?.placa || '-';
     const capacidade = cobranca.espera?.veiculo?.capacidade_ton ?? '-';
     const tarifaVal = cobranca.espera?.tarifa_ton_hora ?? 0;
@@ -68,6 +82,7 @@ export default function Cobranca() {
 
   // D1: generate PDF with jsPDF + QR code
   const handleDownload = async () => {
+    if (!guardNome()) return;
     try {
       const { jsPDF } = await import('jspdf');
       const QRCode = await import('qrcode');
@@ -94,6 +109,7 @@ export default function Cobranca() {
       // ── Data rows ───────────────────────────────────────────────────────────
       const rows: [string, string][] = [
         ['Documento Nº', cobranca.id.slice(0, 8).toUpperCase()],
+        ['Motorista', cobranca.motorista_nome || '-'],
         ['Placa', cobranca.espera?.veiculo?.placa || '-'],
         ['Capacidade', `${cobranca.espera?.veiculo?.capacidade_ton ?? '-'} ton`],
         ['Chegada', format(chegada, "dd/MM/yyyy HH:mm")],
@@ -223,6 +239,10 @@ export default function Cobranca() {
               <div className="flex justify-between border-b border-gray-200 pb-1">
                 <span className="text-gray-500">Documento Nº:</span>
                 <span className="font-mono">{cobranca.id.slice(0,8).toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-200 pb-1">
+                <span className="text-gray-500">Motorista:</span>
+                <span>{cobranca.motorista_nome || '-'}</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-1">
                 <span className="text-gray-500">Placa:</span>

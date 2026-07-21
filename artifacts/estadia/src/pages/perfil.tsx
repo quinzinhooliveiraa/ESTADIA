@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { AppLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  useGetPerfil, 
-  useGetAssinatura, 
+import {
+  useGetPerfil,
+  useGetAssinatura,
   useListVeiculos,
   useCreateVeiculo,
   useDeleteVeiculo,
@@ -14,12 +14,13 @@ import {
   useExportDados,
   useDeletePerfil,
   useLogout,
+  useUpdatePerfil,
   getGetPerfilQueryKey,
   getListVeiculosQueryKey,
-  getGetAssinaturaQueryKey
+  getGetAssinaturaQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { User, Truck, LogOut, Trash2, Download, AlertTriangle, Loader2 } from 'lucide-react';
+import { User, Truck, LogOut, Trash2, Download, AlertTriangle, Loader2, Pencil, Check, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -38,41 +39,79 @@ export default function Perfil() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const { data: perfil } = useGetPerfil({ query: { queryKey: getGetPerfilQueryKey() } });
   const { data: assinatura } = useGetAssinatura({ query: { queryKey: getGetAssinaturaQueryKey() } });
   const { data: veiculos } = useListVeiculos({ query: { queryKey: getListVeiculosQueryKey() } });
-  
+
   const createVeiculo = useCreateVeiculo();
   const deleteVeiculo = useDeleteVeiculo();
   const cancelarAssinatura = useCancelarAssinatura();
   const exportDados = useExportDados();
   const deletePerfil = useDeletePerfil();
   const logout = useLogout();
+  const updatePerfil = useUpdatePerfil();
 
   const [novaPlaca, setNovaPlaca] = useState('');
   const [novaCapacidade, setNovaCapacidade] = useState('');
+
+  // ── Name editing ─────────────────────────────────────────────────────────
+  const [editingNome, setEditingNome] = useState(false);
+  const [nomeInput, setNomeInput] = useState('');
+
+  useEffect(() => {
+    if (perfil?.nome) setNomeInput(perfil.nome);
+  }, [perfil?.nome]);
+
+  const handleSaveNome = () => {
+    const trimmed = nomeInput.trim();
+    if (!trimmed) {
+      toast({ title: 'Nome obrigatório', description: 'Digite seu nome completo.', variant: 'destructive' });
+      return;
+    }
+    updatePerfil.mutate(
+      { data: { nome: trimmed } },
+      {
+        onSuccess: () => {
+          toast({ title: 'Nome atualizado' });
+          queryClient.invalidateQueries({ queryKey: getGetPerfilQueryKey() });
+          setEditingNome(false);
+        },
+        onError: () => {
+          toast({ title: 'Erro ao salvar', description: 'Tente novamente.', variant: 'destructive' });
+        },
+      }
+    );
+  };
+
+  const handleCancelNome = () => {
+    setNomeInput(perfil?.nome ?? '');
+    setEditingNome(false);
+  };
 
   const isPro = perfil?.plano === 'pro_mensal' || perfil?.plano === 'pro_anual';
 
   const handleAddVeiculo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novaPlaca || !novaCapacidade) return;
-    
-    createVeiculo.mutate({
-      data: {
-        placa: novaPlaca.toUpperCase(),
-        capacidade_ton: Number(novaCapacidade),
-        tipo: 'Truck' // Defaulting for simple UI
+
+    createVeiculo.mutate(
+      {
+        data: {
+          placa: novaPlaca.toUpperCase(),
+          capacidade_ton: Number(novaCapacidade),
+          tipo: 'Truck',
+        },
+      },
+      {
+        onSuccess: () => {
+          setNovaPlaca('');
+          setNovaCapacidade('');
+          toast({ title: 'Veículo adicionado' });
+          queryClient.invalidateQueries({ queryKey: getListVeiculosQueryKey() });
+        },
       }
-    }, {
-      onSuccess: () => {
-        setNovaPlaca('');
-        setNovaCapacidade('');
-        toast({ title: 'Veículo adicionado' });
-        queryClient.invalidateQueries({ queryKey: getListVeiculosQueryKey() });
-      }
-    });
+    );
   };
 
   const handleLogout = () => {
@@ -80,7 +119,7 @@ export default function Perfil() {
       onSettled: () => {
         localStorage.removeItem('estadia_token');
         setLocation('/login');
-      }
+      },
     });
   };
 
@@ -89,14 +128,67 @@ export default function Perfil() {
       <div className="flex flex-col h-full bg-background p-4 pb-24 overflow-y-auto">
         <h1 className="text-2xl font-display text-primary mb-6">PERFIL</h1>
 
+        {/* ── Identity card ─────────────────────────────────────────────── */}
         <div className="bg-card border border-card-border rounded-2xl p-5 mb-6">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center">
+            <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center shrink-0">
               <User className="w-6 h-6 text-muted-foreground" />
             </div>
-            <div>
-              <h2 className="font-bold text-lg">{perfil?.telefone}</h2>
-              <div className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 ${isPro ? 'bg-pro/20 text-pro' : 'bg-secondary text-muted-foreground'}`}>
+            <div className="flex-1 min-w-0">
+              {/* ── Name row ─────────────────────────────────────────────── */}
+              {editingNome ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <Input
+                    className="h-8 text-sm bg-background"
+                    value={nomeInput}
+                    onChange={(e) => setNomeInput(e.target.value)}
+                    placeholder="Seu nome completo"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveNome();
+                      if (e.key === 'Escape') handleCancelNome();
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-success hover:text-success"
+                    onClick={handleSaveNome}
+                    disabled={updatePerfil.isPending}
+                  >
+                    {updatePerfil.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={handleCancelNome}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h2 className="font-bold text-base truncate">
+                    {perfil?.nome || <span className="text-muted-foreground italic font-normal">Nome não informado</span>}
+                  </h2>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => setEditingNome(true)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+              {/* ── Phone ─────────────────────────────────────────────────── */}
+              <p className="text-sm text-muted-foreground">{perfil?.telefone}</p>
+              <div
+                className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 ${
+                  isPro ? 'bg-pro/20 text-pro' : 'bg-secondary text-muted-foreground'
+                }`}
+              >
                 {isPro ? 'PRO ATIVO' : 'PLANO GRÁTIS'}
               </div>
             </div>
@@ -107,19 +199,19 @@ export default function Perfil() {
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm text-muted-foreground">Próxima cobrança</span>
                 <span className="text-sm font-bold">
-                  {assinatura.expira_em ? format(new Date(assinatura.expira_em), "dd/MM/yyyy", { locale: ptBR }) : '-'}
+                  {assinatura.expira_em ? format(new Date(assinatura.expira_em), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                 </span>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => {
                   cancelarAssinatura.mutate(undefined, {
                     onSuccess: () => {
                       toast({ title: 'Assinatura cancelada' });
                       queryClient.invalidateQueries({ queryKey: getGetAssinaturaQueryKey() });
-                    }
+                    },
                   });
                 }}
                 disabled={cancelarAssinatura.isPending}
@@ -129,16 +221,20 @@ export default function Perfil() {
             </div>
           )}
           {!isPro && (
-            <Button className="w-full mt-2 bg-pro hover:bg-pro/90 text-white font-bold" onClick={() => setLocation('/paywall')}>
+            <Button
+              className="w-full mt-2 bg-pro hover:bg-pro/90 text-white font-bold"
+              onClick={() => setLocation('/paywall')}
+            >
               Fazer Upgrade para PRO
             </Button>
           )}
         </div>
 
+        {/* ── Vehicles ─────────────────────────────────────────────────── */}
         <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 px-1">Meus Veículos</h3>
-        
+
         <div className="flex flex-col gap-3 mb-6">
-          {veiculos?.map(v => (
+          {veiculos?.map((v) => (
             <div key={v.id} className="bg-card border border-border rounded-xl p-4 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <Truck className="w-5 h-5 text-primary" />
@@ -147,13 +243,13 @@ export default function Perfil() {
                   <p className="text-xs text-muted-foreground">{v.capacidade_ton} toneladas</p>
                 </div>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="text-muted-foreground hover:text-destructive"
                 onClick={() => {
                   deleteVeiculo.mutate({ id: v.id }, {
-                    onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVeiculosQueryKey() })
+                    onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVeiculosQueryKey() }),
                   });
                 }}
               >
@@ -165,30 +261,35 @@ export default function Perfil() {
           <form onSubmit={handleAddVeiculo} className="bg-secondary/50 border border-border border-dashed rounded-xl p-4 mt-2">
             <h4 className="text-xs font-bold mb-3 uppercase tracking-wider">Adicionar Veículo</h4>
             <div className="flex gap-2 mb-3">
-              <Input 
-                placeholder="PLACA" 
-                className="flex-1 uppercase font-mono bg-card" 
+              <Input
+                placeholder="PLACA"
+                className="flex-1 uppercase font-mono bg-card"
                 value={novaPlaca}
-                onChange={e => setNovaPlaca(e.target.value.toUpperCase().slice(0, 7))}
+                onChange={(e) => setNovaPlaca(e.target.value.toUpperCase().slice(0, 7))}
                 maxLength={7}
               />
-              <Input 
+              <Input
                 type="number"
-                placeholder="TON" 
-                className="w-24 bg-card" 
+                placeholder="TON"
+                className="w-24 bg-card"
                 value={novaCapacidade}
-                onChange={e => setNovaCapacidade(e.target.value)}
+                onChange={(e) => setNovaCapacidade(e.target.value)}
               />
             </div>
-            <Button type="submit" size="sm" className="w-full font-bold bg-primary text-primary-foreground hover:bg-primary/90" disabled={createVeiculo.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              className="w-full font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={createVeiculo.isPending}
+            >
               {createVeiculo.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Veículo'}
             </Button>
           </form>
         </div>
 
+        {/* ── Privacy ──────────────────────────────────────────────────── */}
         <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 px-1 mt-4">Privacidade (LGPD)</h3>
 
-        {/* C3: links to legal pages */}
         <div className="flex gap-3 mb-3 px-1">
           <button onClick={() => setLocation('/termos')} className="text-xs text-primary underline underline-offset-2 hover:text-primary/80">
             Termos de Uso
@@ -200,8 +301,8 @@ export default function Perfil() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-2 mb-8">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="w-full justify-start text-foreground mb-1"
             onClick={() => exportDados.refetch().then(() => toast({ title: 'Exportação solicitada', description: 'Seus dados foram exportados.' }))}
           >
@@ -218,21 +319,21 @@ export default function Perfil() {
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-[360px] rounded-2xl bg-card border-card-border">
               <AlertDialogHeader>
-                <AlertDialogTitle>Cancelar sua assinatura?</AlertDialogTitle>
+                <AlertDialogTitle>Excluir sua conta?</AlertDialogTitle>
                 <AlertDialogDescription className="text-muted-foreground">
                   Essa ação não pode ser desfeita. Todos os seus dados, históricos de espera e cobranças serão apagados para sempre.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex-col gap-2 mt-4 sm:flex-col">
                 <AlertDialogCancel className="mt-0 border-border bg-transparent text-foreground hover:bg-secondary">Cancelar</AlertDialogCancel>
-                <AlertDialogAction 
+                <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
                   onClick={() => {
                     deletePerfil.mutate(undefined, {
                       onSuccess: () => {
                         localStorage.removeItem('estadia_token');
                         setLocation('/login');
-                      }
+                      },
                     });
                   }}
                 >
@@ -254,9 +355,9 @@ export default function Perfil() {
           </Button>
         )}
 
-        <Button 
-          variant="outline" 
-          size="lg" 
+        <Button
+          variant="outline"
+          size="lg"
           className="w-full border-border font-bold text-muted-foreground hover:text-foreground"
           onClick={handleLogout}
         >

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGetAssinatura, getGetAssinaturaQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Copy, Check, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { checkoutStore } from '@/lib/checkout-store';
 
 const POLLING_INTERVAL_MS = 3_000;
 const POLLING_MAX_MS = 30 * 60 * 1_000; // 30 minutes
@@ -16,12 +17,13 @@ export default function Pagamento() {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const checkoutDataStr = localStorage.getItem('checkout_result');
-  const checkout = checkoutDataStr ? JSON.parse(checkoutDataStr) : null;
+  // Checkout data passed via in-memory store — no localStorage
+  const checkout = checkoutStore.get();
   const isLive: boolean = checkout?.is_live === true;
 
   const { data: assinatura } = useGetAssinatura();
@@ -30,12 +32,10 @@ export default function Pagamento() {
   useEffect(() => {
     if (!checkout) return;
 
-    // Interval: refetch subscription status every 3 s
     pollingRef.current = setInterval(() => {
       queryClient.invalidateQueries({ queryKey: getGetAssinaturaQueryKey() });
     }, POLLING_INTERVAL_MS);
 
-    // Hard stop after 30 minutes
     timeoutRef.current = setTimeout(() => {
       if (pollingRef.current) clearInterval(pollingRef.current);
       setTimedOut(true);
@@ -74,6 +74,7 @@ export default function Pagamento() {
   // ── Mock-only: confirm payment manually ──────────────────────────────────
   const handleConfirmarMock = async () => {
     setConfirming(true);
+    setConfirmError(null);
     try {
       const token = localStorage.getItem('estadia_token');
       const res = await fetch('/api/assinatura/confirmar-mock', {
@@ -87,8 +88,11 @@ export default function Pagamento() {
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getGetAssinaturaQueryKey() });
       } else {
-        toast({ title: 'Erro ao confirmar', description: 'Tente novamente.', variant: 'destructive' });
+        const body = await res.json().catch(() => ({}));
+        setConfirmError(body?.message || `Erro ${res.status} ao confirmar pagamento.`);
       }
+    } catch {
+      setConfirmError('Falha de conexão. Verifique sua rede e tente novamente.');
     } finally {
       setConfirming(false);
     }
@@ -138,7 +142,7 @@ export default function Pagamento() {
             <div className="text-center text-muted-foreground text-sm">
               <p className="mb-3">O QR Code expirou. Tente novamente.</p>
               <Button variant="outline" onClick={() => setLocation('/paywall')}>
-                Voltar ao planos
+                Voltar aos planos
               </Button>
             </div>
           ) : (
@@ -150,20 +154,38 @@ export default function Pagamento() {
 
               {/* Only shown in mock/dev mode — live mode relies solely on the webhook */}
               {!isLive && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full h-12 font-bold gap-2"
-                  onClick={handleConfirmarMock}
-                  disabled={confirming}
-                >
-                  {confirming ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <div className="w-full flex flex-col gap-2">
+                  {confirmError && (
+                    <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-center">
+                      <p className="text-sm text-destructive mb-2">{confirmError}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                        onClick={handleConfirmarMock}
+                        disabled={confirming}
+                      >
+                        Tentar novamente
+                      </Button>
+                    </div>
                   )}
-                  Já paguei — confirmar
-                </Button>
+                  {!confirmError && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full h-12 font-bold gap-2"
+                      onClick={handleConfirmarMock}
+                      disabled={confirming}
+                    >
+                      {confirming ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      )}
+                      Já paguei — confirmar
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           )}
