@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useRequestOtp, useVerifyOtp } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
-import { setAuthTokenGetter } from '@workspace/api-client-react';
+import { setToken } from '@/lib/token';
 import { Loader2 } from 'lucide-react';
 
 // D5: demo button only when VITE_DEMO_MODE=true
@@ -47,8 +47,7 @@ export default function Login() {
       const res = await fetch('/api/auth/demo', { method: 'POST' });
       if (!res.ok) throw new Error('Falha ao entrar em modo demo');
       const data = await res.json();
-      localStorage.setItem('estadia_token', data.token);
-      setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
+      setToken(data.token);
       localStorage.setItem('estadia_onboarding_seen', '1');
       setLocation('/');
     } catch {
@@ -104,8 +103,7 @@ export default function Login() {
       { data: { telefone: formattedPhone, codigo: otp } },
       {
         onSuccess: (data) => {
-          localStorage.setItem('estadia_token', data.token);
-          setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
+          setToken(data.token);
           setLocation('/');
         },
         onError: () => {

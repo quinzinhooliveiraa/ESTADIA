@@ -18,10 +18,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+import { getToken } from '@/lib/token';
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('estadia_token') ?? '';
+  const token = getToken() ?? '';
   const res = await fetch(`${BASE}/api${path}`, {
     ...opts,
     headers: {
@@ -696,7 +698,7 @@ export default function AdminPage() {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('estadia_token');
+    const token = getToken();
     if (!token) { setLocation('/'); return; }
 
     // Try to reach a protected admin endpoint; 404 = not admin
