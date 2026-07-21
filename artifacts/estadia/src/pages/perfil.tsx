@@ -11,7 +11,6 @@ import {
   useCreateVeiculo,
   useDeleteVeiculo,
   useCancelarAssinatura,
-  useExportDados,
   useDeletePerfil,
   useLogout,
   useUpdatePerfil,
@@ -47,13 +46,36 @@ export default function Perfil() {
   const createVeiculo = useCreateVeiculo();
   const deleteVeiculo = useDeleteVeiculo();
   const cancelarAssinatura = useCancelarAssinatura();
-  const exportDados = useExportDados();
   const deletePerfil = useDeletePerfil();
   const logout = useLogout();
   const updatePerfil = useUpdatePerfil();
 
   const [novaPlaca, setNovaPlaca] = useState('');
   const [novaCapacidade, setNovaCapacidade] = useState('');
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportDados = async () => {
+    setExportando(true);
+    try {
+      const res = await fetch('/api/perfil/export');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meus-dados-estadia.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Dados exportados', description: 'O arquivo foi baixado.' });
+    } catch {
+      toast({ title: 'Erro ao exportar', description: 'Não foi possível exportar seus dados. Tente novamente.', variant: 'destructive' });
+    } finally {
+      setExportando(false);
+    }
+  };
 
   // ── Name editing ─────────────────────────────────────────────────────────
   const [editingNome, setEditingNome] = useState(false);
@@ -304,10 +326,13 @@ export default function Perfil() {
           <Button
             variant="ghost"
             className="w-full justify-start text-foreground mb-1"
-            onClick={() => exportDados.refetch().then(() => toast({ title: 'Exportação solicitada', description: 'Seus dados foram exportados.' }))}
+            onClick={handleExportDados}
+            disabled={exportando}
           >
-            <Download className="w-4 h-4 mr-3 text-muted-foreground" />
-            Exportar meus dados
+            {exportando
+              ? <Loader2 className="w-4 h-4 mr-3 animate-spin text-muted-foreground" />
+              : <Download className="w-4 h-4 mr-3 text-muted-foreground" />}
+            {exportando ? 'Exportando…' : 'Exportar meus dados'}
           </Button>
 
           <AlertDialog>
