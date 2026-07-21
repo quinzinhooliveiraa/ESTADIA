@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { AppLayout } from '@/components/layout';
+import { clearToken } from '@/lib/token';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -117,7 +118,7 @@ export default function Perfil() {
   const handleLogout = () => {
     logout.mutate(undefined, {
       onSettled: () => {
-        localStorage.removeItem('estadia_token');
+        clearToken();
         setLocation('/login');
       },
     });
@@ -331,7 +332,7 @@ export default function Perfil() {
                   onClick={() => {
                     deletePerfil.mutate(undefined, {
                       onSuccess: () => {
-                        localStorage.removeItem('estadia_token');
+                        clearToken();
                         setLocation('/login');
                       },
                     });
