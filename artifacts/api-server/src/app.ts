@@ -44,12 +44,18 @@ app.use(
   })
 );
 
-// A4: photo route gets 8 MB; everything else gets the default 100 KB
+// A4: photo route gets 8 MB; everything else gets the default 100 KB.
+// Capture raw body for webhook HMAC-SHA256 signature verification.
 app.use((req, res, next) => {
   const isFotosRoute =
     req.method === "POST" &&
     /^\/api\/esperas\/[^/]+\/fotos$/.test(req.path);
-  express.json({ limit: isFotosRoute ? "8mb" : "100kb" })(req, res, next);
+  express.json({
+    limit: isFotosRoute ? "8mb" : "100kb",
+    verify: (req: any, _res, buf, encoding) => {
+      req.rawBody = buf.toString((encoding as BufferEncoding) || "utf8");
+    },
+  })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true }));
 

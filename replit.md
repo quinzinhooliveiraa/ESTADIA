@@ -12,6 +12,10 @@ App para motoristas cobrarem estadia (tempo de espera) garantida pela Lei 13.103
 - Required env: `DATABASE_URL` — Postgres connection string
 - Optional env: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` — SMS OTP (DevLog fallback used when absent)
 - Optional env: `ADMIN_TELEFONES` — comma-separated E.164 phones that get is_admin=true on next login
+- Optional env: `ABACATEPAY_API_KEY` — chave de API v2 (sem ela, modo mock com QR falso)
+- Optional env: `ABACATEPAY_WEBHOOK_SECRET` — secret do webhook; obrigatório em produção
+- Optional env: `ABACATEPAY_PRODUCT_ID_MENSAL` / `ABACATEPAY_PRODUCT_ID_ANUAL` — IDs dos produtos v2; criados automaticamente via API se ausentes
+- Optional env: `ABACATEPAY_METHODS` — métodos de pagamento (padrão: `PIX`); `CARD` requer setup no dashboard AbacatePay
 
 ## Stack
 

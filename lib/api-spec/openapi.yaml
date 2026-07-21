@@ -924,21 +924,32 @@ components:
 
     CheckoutResult:
       type: object
-      required: [billing_id, pix_qr_code, pix_copia_cola, valor, expira_em]
+      required: [billing_id, valor, expira_em]
       properties:
         billing_id:
           type: string
+          description: AbacatePay checkout or billing ID (bill_... prefix)
+        checkout_url:
+          type: ["string", "null"]
+          description: >
+            Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions).
+            Redirect the user here to complete payment via PIX or card.
         pix_qr_code:
-          type: string
-          description: Base64 QR code image
+          type: ["string", "null"]
+          description: >
+            Base64 QR code image. Present in mock/dev mode or when AbacatePay
+            returns inline PIX data (PIX Automático feature).
         pix_copia_cola:
-          type: string
-          description: PIX copy-paste string
+          type: ["string", "null"]
+          description: PIX copy-paste (brCode) string. Same availability as pix_qr_code.
         valor:
           type: number
         expira_em:
           type: string
           format: date-time
+        is_live:
+          type: boolean
+          description: True when a real AbacatePay charge was created; false in mock/dev mode.
 
     AbacatePayWebhookPayload:
       type: object
@@ -948,11 +959,10 @@ components:
           type: string
         data:
           type: object
-          properties:
-            id:
-              type: string
-            status:
-              type: string
+          description: >
+            v2 subscription event data. Shape varies by event type:
+            subscription.completed / subscription.renewed contain
+            { subscription, customer, payment, checkout }.
 
     # ─── TARIFAS ────────────────────────────────────────────────────────────
     Tarifa:

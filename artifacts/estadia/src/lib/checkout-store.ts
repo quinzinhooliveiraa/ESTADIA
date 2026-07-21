@@ -7,8 +7,13 @@
 
 export interface CheckoutData {
   billing_id: string;
-  pix_qr_code: string;   // Base64
-  pix_copia_cola: string;
+  /** AbacatePay v2 hosted checkout URL. Present in live mode. */
+  checkout_url?: string | null;
+  /** Base64 QR code image. Present in mock/dev mode or PIX Automático. */
+  pix_qr_code?: string | null;
+  /** PIX copia-e-cola string. Same availability as pix_qr_code. */
+  pix_copia_cola?: string | null;
+  valor?: number;
   is_live?: boolean;
 }
 

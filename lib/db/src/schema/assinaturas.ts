@@ -35,6 +35,7 @@ export const assinaturasTable = pgTable("assinaturas", {
   status: statusAssinaturaEnum("status").notNull().default("pendente"),
   expira_em: timestamp("expira_em", { withTimezone: true }),
   abacatepay_billing_id: text("abacatepay_billing_id"),
+  abacatepay_subscription_id: text("abacatepay_subscription_id"),
   metodo: metodoAssinaturaEnum("metodo"),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()

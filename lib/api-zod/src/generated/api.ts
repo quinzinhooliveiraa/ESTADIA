@@ -672,9 +672,14 @@ export const CriarCheckoutBody = zod.object({
 })
 
 export const CriarCheckoutResponse = zod.object({
+  /** AbacatePay checkout/billing ID (bill_... prefix) */
   "billing_id": zod.string(),
-  "pix_qr_code": zod.string().describe('Base64 QR code image'),
-  "pix_copia_cola": zod.string().describe('PIX copy-paste string'),
+  /** Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions). */
+  "checkout_url": zod.string().nullable().optional(),
+  /** Base64 QR code image. Present in mock/dev mode or PIX Automático. */
+  "pix_qr_code": zod.string().nullable().optional(),
+  /** PIX copia-e-cola string. Same availability as pix_qr_code. */
+  "pix_copia_cola": zod.string().nullable().optional(),
   "valor": zod.number(),
   "expira_em": zod.coerce.date(),
   /** True when a real AbacatePay charge was created; false in mock/dev mode */
@@ -697,14 +702,13 @@ export const CancelarAssinaturaResponse = zod.object({
 
 
 /**
- * @summary AbacatePay payment webhook
+ * @summary AbacatePay payment webhook (v2 subscription events)
+ * event: subscription.completed | subscription.renewed |
+ *        subscription.payment_failed | subscription.cancelled
  */
 export const AbacatePayWebhookBody = zod.object({
   "event": zod.string(),
-  "data": zod.object({
-  "id": zod.string().optional(),
-  "status": zod.string().optional()
-})
+  "data": zod.record(zod.string(), zod.unknown())
 })
 
 export const AbacatePayWebhookResponse = zod.unknown()
