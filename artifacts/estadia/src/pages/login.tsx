@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { AppLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
@@ -11,16 +11,35 @@ import { Loader2 } from 'lucide-react';
 // D5: demo button only when VITE_DEMO_MODE=true
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
+/** Formats raw digit string as (DD) DDDDD-DDDD or (DD) DDDD-DDDD */
+function maskPhone(digits: string): string {
+  const d = digits.slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
 export default function Login() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phone, setPhone] = useState('');
+  // Store only raw digits; display via maskPhone()
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [otp, setOtp] = useState('');
   const [demoLoading, setDemoLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const requestOtp = useRequestOtp();
   const verifyOtp = useVerifyOtp();
+
+  // Tick down the resend countdown
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
 
   const handleDemo = async () => {
     setDemoLoading(true);
@@ -39,34 +58,47 @@ export default function Login() {
     }
   };
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone || phone.length < 10) {
-      toast({ title: 'Telefone inválido', description: 'Digite um número válido com DDD.', variant: 'destructive' });
-      return;
-    }
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setPhoneDigits(digits);
+    if (phoneError) setPhoneError('');
+  };
 
-    const formattedPhone = phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`;
-
+  const dispatchOtp = (digits: string) => {
+    const formattedPhone = `+55${digits}`;
     requestOtp.mutate(
       { data: { telefone: formattedPhone } },
       {
         onSuccess: () => {
           setStep('otp');
+          setCountdown(60);
           toast({ title: 'Código enviado', description: 'Verifique seu SMS ou WhatsApp.' });
         },
         onError: () => {
           toast({ title: 'Erro ao enviar', description: 'Tente novamente.', variant: 'destructive' });
-        }
+        },
       }
     );
+  };
+
+  const handlePhoneSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      setPhoneError('Confira o número — deve ter DDD + 9 dígitos');
+      return;
+    }
+    dispatchOtp(phoneDigits);
+  };
+
+  const handleResend = () => {
+    dispatchOtp(phoneDigits);
   };
 
   const handleOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!otp || otp.length < 4) return;
 
-    const formattedPhone = phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`;
+    const formattedPhone = `+55${phoneDigits}`;
 
     verifyOtp.mutate(
       { data: { telefone: formattedPhone, codigo: otp } },
@@ -78,7 +110,7 @@ export default function Login() {
         },
         onError: () => {
           toast({ title: 'Código inválido', description: 'Verifique o código e tente novamente.', variant: 'destructive' });
-        }
+        },
       }
     );
   };
@@ -102,11 +134,14 @@ export default function Login() {
               <Input
                 type="tel"
                 placeholder="(11) 99999-9999"
-                className="h-14 text-lg bg-card border-card-border"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                className={`h-14 text-lg bg-card border-card-border ${phoneError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                value={maskPhone(phoneDigits)}
+                onChange={handlePhoneChange}
                 autoFocus
               />
+              {phoneError && (
+                <p className="mt-1.5 text-sm text-destructive">{phoneError}</p>
+              )}
             </div>
 
             <div className="mt-auto pb-6">
@@ -165,7 +200,16 @@ export default function Login() {
             <div>
               <label className="block text-sm font-semibold mb-2">Código recebido</label>
               <p className="text-sm text-muted-foreground mb-4">
-                Enviamos um código para {phone}
+                Enviamos um código para{' '}
+                <span className="font-medium text-foreground">{maskPhone(phoneDigits)}</span>
+                {' · '}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 hover:text-foreground transition-colors"
+                  onClick={() => { setStep('phone'); setCountdown(0); }}
+                >
+                  trocar número
+                </button>
               </p>
               <Input
                 type="text"
@@ -187,13 +231,19 @@ export default function Login() {
               >
                 {verifyOtp.isPending ? 'Verificando...' : 'Entrar'}
               </Button>
+
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full mt-2 text-muted-foreground"
-                onClick={() => setStep('phone')}
+                className="w-full mt-2 text-muted-foreground disabled:opacity-50"
+                onClick={handleResend}
+                disabled={countdown > 0 || requestOtp.isPending}
               >
-                Mudar número
+                {requestOtp.isPending
+                  ? 'Enviando...'
+                  : countdown > 0
+                    ? `Reenviar em ${countdown}s`
+                    : 'Reenviar código'}
               </Button>
             </div>
           </form>
