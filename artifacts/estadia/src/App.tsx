@@ -5,6 +5,7 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useEffect } from 'react';
 import { setAuthTokenGetter, ApiError } from '@workspace/api-client-react';
+import { getToken, clearToken } from '@/lib/token';
 
 import { InAppBrowserGate } from '@/components/InAppBrowserGate';
 import Onboarding from '@/pages/onboarding';
@@ -22,7 +23,7 @@ import Privacidade from '@/pages/privacidade';
 import Admin from '@/pages/admin';
 
 function handleUnauthorized() {
-  localStorage.removeItem('estadia_token');
+  clearToken();
   // Navigate to login without a full page reload
   window.location.replace(
     import.meta.env.BASE_URL.replace(/\/$/, '') + '/login'
@@ -54,8 +55,8 @@ const queryClient = new QueryClient({
   },
 });
 
-// Initial token setup
-setAuthTokenGetter(() => localStorage.getItem('estadia_token'));
+// Initial token setup — reads from cookie (with localStorage fallback for migration)
+setAuthTokenGetter(getToken);
 
 // Public paths that don't require authentication
 const PUBLIC_PATHS = ['/verificar', '/termos', '/privacidade', '/admin'];
@@ -64,7 +65,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    const token = localStorage.getItem('estadia_token');
+    const token = getToken();
     const seenOnboarding = localStorage.getItem('estadia_onboarding_seen');
 
     // Allow public routes

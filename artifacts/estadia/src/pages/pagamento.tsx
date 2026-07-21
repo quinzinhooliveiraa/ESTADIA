@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { checkoutStore } from '@/lib/checkout-store';
+import { getToken } from '@/lib/token';
 
 const POLLING_INTERVAL_MS = 3_000;
 const POLLING_MAX_MS = 30 * 60 * 1_000; // 30 minutes
@@ -92,7 +93,7 @@ export default function Pagamento() {
     setConfirming(true);
     setConfirmError(null);
     try {
-      const token = localStorage.getItem('estadia_token');
+      const token = getToken();
       const res = await fetch('/api/assinatura/confirmar-mock', {
         method: 'POST',
         headers: {
