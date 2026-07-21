@@ -32,10 +32,7 @@ function isActivePlan(assinatura: typeof assinaturasTable.$inferSelect): boolean
 }
 
 function isLiveMode(): boolean {
-  return !!(
-    process.env.ABACATEPAY_API_KEY &&
-    process.env.ABACATEPAY_LIVE === "true"
-  );
+  return !!process.env.ABACATEPAY_API_KEY;
 }
 
 // ── GET /assinatura ───────────────────────────────────────────────────────────
@@ -92,17 +89,17 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
         },
         body: JSON.stringify({
           amount: Math.round(valor * 100),   // cents
-          expiresIn: 30 * 60,               // 30 minutes in seconds
           description: DESCRICOES[plano] ?? "ESTADIA PRO",
+          externalId: assinaturaId,
         }),
       });
 
       const abacateBody: any = await abacateRes.json();
 
-      if (!abacateRes.ok || abacateBody?.error) {
+      if (!abacateRes.ok || abacateBody.error) {
         // Log error body without exposing the API key
         logger.error(
-          { status: abacateRes.status, abacateError: abacateBody },
+          { status: abacateRes.status, abacateError: abacateBody.error ?? abacateBody },
           "AbacatePay pixQrCode/create failed"
         );
         res.status(502).json({
@@ -111,7 +108,7 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
         return;
       }
 
-      const pixData = abacateBody?.data;
+      const pixData = abacateBody.data || abacateBody;
       if (!pixData?.id || !pixData?.brCode || !pixData?.brCodeBase64) {
         logger.error({ abacateBody }, "AbacatePay returned unexpected shape");
         res.status(502).json({
@@ -314,19 +311,19 @@ router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
       return;
     }
 
-    // ── Optional live verification via AbacatePay API ─────────────────────
-    if (process.env.ABACATEPAY_LIVE === "true") {
+    // ── Verify payment status via AbacatePay API (when key is present) ───────
+    if (process.env.ABACATEPAY_API_KEY) {
       try {
         const apiKey = process.env.ABACATEPAY_API_KEY;
-        // Use the pixQrCode/check endpoint to verify payment status
         const verifyRes = await fetch(
           `${ABACATEPAY_BASE}/pixQrCode/check?id=${chargeId}`,
           { headers: { Authorization: `Bearer ${apiKey}` } }
         );
         if (!verifyRes.ok) throw new Error(`Verify request failed: ${verifyRes.status}`);
         const billing: any = await verifyRes.json();
-        if (billing?.data?.status !== "PAID") {
-          logger.warn({ chargeId, status: billing?.data?.status }, "Webhook: billing not paid per API");
+        const billingData = billing?.data || billing;
+        if (billingData?.status !== "PAID") {
+          logger.warn({ chargeId, status: billingData?.status }, "Webhook: billing not paid per API");
           res.json({ ok: true });
           return;
         }
