@@ -372,6 +372,119 @@ router.get(
   },
 );
 
+// ── PATCH /admin/motoristas/:id/assinatura ────────────────────────────────
+
+router.patch(
+  "/admin/motoristas/:id/assinatura",
+  requireAdmin,
+  async (req: AdminRequest, res): Promise<void> => {
+    const { id } = req.params;
+    const adminId = req.motoristaId!;
+
+    const { status, plano, expira_em } = req.body as {
+      status?: string;
+      plano?: string;
+      expira_em?: string | null;
+    };
+
+    const validStatuses = ["ativo", "cancelado"];
+    const validPlanos = ["gratis", "pro_mensal", "pro_anual"];
+
+    if (status !== undefined && !validStatuses.includes(status)) {
+      res.status(400).json({ error: "Status inválido. Use: ativo, cancelado" });
+      return;
+    }
+    if (plano !== undefined && !validPlanos.includes(plano)) {
+      res.status(400).json({ error: "Plano inválido. Use: gratis, pro_mensal, pro_anual" });
+      return;
+    }
+    if (status === undefined && plano === undefined && expira_em === undefined) {
+      res.status(400).json({ error: "Nenhum campo para alterar fornecido" });
+      return;
+    }
+
+    // Verify motorista exists
+    const motoristas = await db
+      .select()
+      .from(motoristasTable)
+      .where(eq(motoristasTable.id, id))
+      .limit(1);
+
+    if (motoristas.length === 0 || motoristas[0].anonimizado) {
+      res.status(404).json({ error: "Motorista não encontrado" });
+      return;
+    }
+
+    // Get latest assinatura
+    const assinaturas = await db
+      .select()
+      .from(assinaturasTable)
+      .where(eq(assinaturasTable.motorista_id, id))
+      .orderBy(desc(assinaturasTable.created_at))
+      .limit(1);
+
+    const oldStatus = assinaturas[0]?.status ?? null;
+    const oldPlano = assinaturas[0]?.plano ?? null;
+    const oldExpira = assinaturas[0]?.expira_em?.toISOString() ?? null;
+
+    let assinaturaId: string;
+
+    if (assinaturas.length > 0) {
+      assinaturaId = assinaturas[0].id;
+      const updates: Record<string, unknown> = {};
+      if (status !== undefined) updates.status = status;
+      if (plano !== undefined) updates.plano = plano;
+      if (expira_em !== undefined) {
+        updates.expira_em = expira_em ? new Date(expira_em) : null;
+      }
+      await db
+        .update(assinaturasTable)
+        .set(updates as any)
+        .where(eq(assinaturasTable.id, assinaturaId));
+    } else {
+      // No subscription yet — create one
+      assinaturaId = randomUUID();
+      await db.insert(assinaturasTable).values({
+        id: assinaturaId,
+        motorista_id: id,
+        plano: (plano ?? "gratis") as any,
+        status: (status ?? "ativo") as any,
+        expira_em: expira_em ? new Date(expira_em) : null,
+      });
+    }
+
+    // Sync motorista.plano: PRO only when subscription is active and plan is PRO
+    const effectiveStatus = status ?? assinaturas[0]?.status ?? "ativo";
+    const effectivePlano = plano ?? assinaturas[0]?.plano ?? "gratis";
+    const motoristaPlan =
+      effectiveStatus === "ativo" && effectivePlano !== "gratis"
+        ? effectivePlano
+        : "gratis";
+
+    await db
+      .update(motoristasTable)
+      .set({ plano: motoristaPlan as any })
+      .where(eq(motoristasTable.id, id));
+
+    // Audit log
+    const diff: string[] = [];
+    if (status !== undefined) diff.push(`status:${oldStatus ?? "none"}->${status}`);
+    if (plano !== undefined) diff.push(`plano:${oldPlano ?? "none"}->${plano}`);
+    if (expira_em !== undefined) diff.push(`expira_em:${oldExpira ?? "none"}->${expira_em ?? "null"}`);
+    const acao = `assinatura_admin_edit:motorista_id=${id},${diff.join(",")}`;
+
+    await db.insert(adminLogsTable).values({
+      id: randomUUID(),
+      admin_id: adminId,
+      acao,
+    });
+
+    req.log?.info({ adminId, motoristaId: id, diff }, "Admin edited assinatura");
+
+    res.json({ ok: true });
+  },
+);
+
 // ── GET /admin/tarifas ────────────────────────────────────────────────────
 
 router.get(

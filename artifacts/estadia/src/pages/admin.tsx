@@ -274,7 +274,12 @@ function Usuarios() {
           ← Voltar
         </Button>
         {detailLoading && <p className="text-[#8A9099] text-sm">Carregando...</p>}
-        {detail && <MotoristaDetailView data={detail} />}
+        {detail && (
+          <MotoristaDetailView
+            data={detail}
+            onRefresh={() => openDetail(detail.motorista.id)}
+          />
+        )}
       </div>
     );
   }
@@ -363,7 +368,214 @@ function Usuarios() {
   );
 }
 
-function MotoristaDetailView({ data }: { data: MotoristaDetail }) {
+// ── Alterar Assinatura Panel ───────────────────────────────────────────────
+
+type AssinaturaStatus = 'ativo' | 'cancelado';
+type AssinaturaPlano = 'gratis' | 'pro_mensal' | 'pro_anual';
+
+function AlterarAssinaturaPanel({
+  motoristaId,
+  current,
+  onSuccess,
+}: {
+  motoristaId: string;
+  current: MotoristaDetail['assinaturas'][0] | null;
+  onSuccess: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<'form' | 'confirm'>('form');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const [novoStatus, setNovoStatus] = useState<AssinaturaStatus>(
+    (current?.status as AssinaturaStatus) === 'ativo' || (current?.status as AssinaturaStatus) === 'cancelado'
+      ? (current!.status as AssinaturaStatus)
+      : 'ativo'
+  );
+  const [novoPlano, setNovoPlano] = useState<AssinaturaPlano>(
+    (current?.plano as AssinaturaPlano) ?? 'pro_mensal'
+  );
+  const [expiraEm, setExpiraEm] = useState<string>(() => {
+    if (current?.expira_em) {
+      return new Date(current.expira_em).toISOString().slice(0, 10);
+    }
+    // Default: +30 days
+    return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  });
+
+  const showExpira = novoStatus === 'ativo' && novoPlano !== 'gratis';
+
+  function reset() {
+    setStep('form');
+    setMsg(null);
+    setOpen(false);
+  }
+
+  function summarize() {
+    const parts: string[] = [];
+    parts.push(`Status: ${novoStatus}`);
+    if (novoStatus === 'ativo') {
+      parts.push(`Plano: ${novoPlano}`);
+      if (showExpira && expiraEm) parts.push(`Expira em: ${new Date(expiraEm).toLocaleDateString('pt-BR')}`);
+    }
+    return parts.join(' · ');
+  }
+
+  async function apply() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const body: Record<string, unknown> = { status: novoStatus };
+      if (novoStatus === 'ativo') {
+        body.plano = novoPlano;
+        body.expira_em = showExpira && expiraEm ? new Date(expiraEm).toISOString() : null;
+      } else {
+        // Cancelled → clear expiry and revert to gratis
+        body.plano = 'gratis';
+        body.expira_em = null;
+      }
+      await apiFetch(`/admin/motoristas/${motoristaId}/assinatura`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setMsg({ type: 'ok', text: 'Assinatura atualizada com sucesso.' });
+      setTimeout(() => { reset(); onSuccess(); }, 1200);
+    } catch (e) {
+      setMsg({ type: 'err', text: `Erro ao salvar: ${e}` });
+      setStep('form');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs px-3 py-1.5 rounded bg-[#FFC400]/10 text-[#FFC400] border border-[#FFC400]/30 hover:bg-[#FFC400]/20 transition-colors font-semibold"
+      >
+        🔧 Alterar assinatura
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-[#111417] border border-[#FFC400]/30 rounded-lg p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-[#FFC400] uppercase tracking-wider">Alterar assinatura</span>
+        <button onClick={reset} className="text-[#8A9099] hover:text-white text-xs">✕ Fechar</button>
+      </div>
+
+      {step === 'form' && (
+        <div className="space-y-3">
+          {/* Status */}
+          <div>
+            <label className="block text-xs text-[#8A9099] mb-1">Novo status</label>
+            <div className="flex gap-2">
+              {(['ativo', 'cancelado'] as AssinaturaStatus[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setNovoStatus(s)}
+                  className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                    novoStatus === s
+                      ? s === 'ativo'
+                        ? 'bg-green-900 border-green-600 text-green-300'
+                        : 'bg-red-900 border-red-700 text-red-300'
+                      : 'bg-[#1a1e24] border-[#2a3040] text-[#8A9099] hover:text-white'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Plano (only if ativo) */}
+          {novoStatus === 'ativo' && (
+            <div>
+              <label className="block text-xs text-[#8A9099] mb-1">Plano</label>
+              <div className="flex gap-2 flex-wrap">
+                {(['gratis', 'pro_mensal', 'pro_anual'] as AssinaturaPlano[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setNovoPlano(p)}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                      novoPlano === p
+                        ? 'bg-[#FFC400]/20 border-[#FFC400]/60 text-[#FFC400]'
+                        : 'bg-[#1a1e24] border-[#2a3040] text-[#8A9099] hover:text-white'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Expira em (only when granting PRO) */}
+          {showExpira && (
+            <div>
+              <label className="block text-xs text-[#8A9099] mb-1">Expira em</label>
+              <input
+                type="date"
+                value={expiraEm}
+                onChange={(e) => setExpiraEm(e.target.value)}
+                className="bg-[#111417] border border-[#2a3040] text-white text-xs rounded px-2 py-1.5 w-40"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={() => setStep('confirm')}
+            className="text-xs px-4 py-1.5 rounded bg-[#FFC400] text-black font-bold hover:bg-[#e6b000] transition-colors"
+          >
+            Revisar alteração →
+          </button>
+        </div>
+      )}
+
+      {step === 'confirm' && (
+        <div className="space-y-3">
+          <div className="bg-[#1a1e24] rounded p-3 text-xs space-y-1">
+            <p className="text-[#8A9099] font-semibold uppercase tracking-wider mb-2">Confirmar alteração</p>
+            {current && (
+              <p className="text-[#8A9099]">
+                Atual: {current.plano} · {current.status}
+                {current.expira_em ? ` · expira ${new Date(current.expira_em).toLocaleDateString('pt-BR')}` : ''}
+              </p>
+            )}
+            <p className="text-white font-medium">Novo: {summarize()}</p>
+          </div>
+
+          {msg && (
+            <p className={`text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={apply}
+              disabled={saving}
+              className="text-xs px-4 py-1.5 rounded bg-[#FFC400] text-black font-bold hover:bg-[#e6b000] disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Salvando...' : 'Confirmar e aplicar'}
+            </button>
+            <button
+              onClick={() => { setStep('form'); setMsg(null); }}
+              disabled={saving}
+              className="text-xs px-3 py-1.5 rounded text-[#8A9099] hover:text-white transition-colors"
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Motorista Detail View ──────────────────────────────────────────────────
+
+function MotoristaDetailView({ data, onRefresh }: { data: MotoristaDetail; onRefresh: () => void }) {
   const { motorista, veiculos, esperas, assinaturas } = data;
   return (
     <div className="space-y-4">
@@ -428,9 +640,13 @@ function MotoristaDetailView({ data }: { data: MotoristaDetail }) {
         </div>
       </section>
 
-      {assinaturas.length > 0 && (
-        <section>
-          <h3 className="text-xs font-semibold text-[#8A9099] uppercase mb-2">Assinaturas</h3>
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-[#8A9099] uppercase">
+            Assinaturas {assinaturas.length === 0 ? '(nenhuma)' : ''}
+          </h3>
+        </div>
+        <div className="space-y-2">
           {assinaturas.map((a) => (
             <div key={a.id} className="bg-[#1a1e24] rounded px-3 py-2 text-xs space-y-1">
               <div className="flex gap-3 items-center">
@@ -453,8 +669,14 @@ function MotoristaDetailView({ data }: { data: MotoristaDetail }) {
               ))}
             </div>
           ))}
-        </section>
-      )}
+
+          <AlterarAssinaturaPanel
+            motoristaId={motorista.id}
+            current={assinaturas[0] ?? null}
+            onSuccess={onRefresh}
+          />
+        </div>
+      </section>
     </div>
   );
 }
