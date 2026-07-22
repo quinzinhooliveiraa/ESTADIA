@@ -7,13 +7,17 @@
 
 export interface CheckoutData {
   billing_id: string;
-  /** AbacatePay v2 hosted checkout URL. Present in live mode. */
+  /** PIX charge ID for verify-pix polling (= billing_id for pix_avulso) */
+  charge_id?: string | null;
+  /** AbacatePay v2 hosted checkout URL. Present for cartao / pix_automatico. */
   checkout_url?: string | null;
-  /** Base64 QR code image. Present in mock/dev mode or PIX Automático. */
+  /** Base64 QR code image. Present for pix_avulso (live + mock). */
   pix_qr_code?: string | null;
   /** PIX copia-e-cola string. Same availability as pix_qr_code. */
   pix_copia_cola?: string | null;
+  plano?: 'pro_mensal' | 'pro_anual';
   valor?: number;
+  expira_em?: string;
   is_live?: boolean;
 }
 

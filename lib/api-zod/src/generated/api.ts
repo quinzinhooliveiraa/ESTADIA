@@ -675,18 +675,23 @@ export const GetMetodosAssinaturaResponse = zod.object({
  * @summary Create AbacatePay PIX checkout for subscription
  */
 export const CriarCheckoutBody = zod.object({
-  "plano": zod.enum(['pro_mensal', 'pro_anual'])
+  "plano": zod.enum(['pro_mensal', 'pro_anual']),
+  /** Payment method. Defaults to pix_avulso (v1 one-shot PIX QR). */
+  "metodo": zod.enum(['pix_avulso', 'cartao', 'pix_automatico']).optional()
 })
 
 export const CriarCheckoutResponse = zod.object({
-  /** AbacatePay checkout/billing ID (bill_... prefix) */
+  /** AbacatePay charge/billing ID */
   "billing_id": zod.string(),
-  /** Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions). */
+  /** PIX charge ID for v1 polling (same as billing_id for pix_avulso) */
+  "charge_id": zod.string().nullable().optional(),
+  /** AbacatePay hosted checkout URL. Present for cartao / pix_automatico (v2). */
   "checkout_url": zod.string().nullable().optional(),
-  /** Base64 QR code image. Present in mock/dev mode or PIX Automático. */
+  /** Base64 QR code image. Present for pix_avulso (live v1) and mock mode. */
   "pix_qr_code": zod.string().nullable().optional(),
   /** PIX copia-e-cola string. Same availability as pix_qr_code. */
   "pix_copia_cola": zod.string().nullable().optional(),
+  "plano": zod.enum(['pro_mensal', 'pro_anual']).optional(),
   "valor": zod.number(),
   "expira_em": zod.coerce.date(),
   /** True when a real AbacatePay charge was created; false in mock/dev mode */

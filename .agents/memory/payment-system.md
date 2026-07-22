@@ -1,34 +1,62 @@
 ---
-name: Payment system architecture
-description: How the ESTADIA payment/subscription system works and which parts are live vs stubbed
+name: Payment system
+description: AbacatePay integration — which API version per method, env flags, webhook events, frontend flows
 ---
 
-## AbacatePay integration
+## Methods
 
-- **Live endpoint**: `POST /v1/pixQrCode/create` — one-time PIX QR code, always available
-- **Live check**: `GET /v1/pixQrCode/check?id=<id>` — poll payment status
-- **Webhook**: `POST /webhooks/abacatepay` with event `pixQrCode.paid` — activates subscription
-- **V2 stubs** (not yet available on the account): `/v2/subscriptions/create` with `methods:["CARD"]` or `methods:["PIX"]`
+| metodo | API | Endpoint | Status |
+|---|---|---|---|
+| pix_avulso | v1 | POST /v1/pixQrCode/create | Always available; default |
+| pix_automatico | v2 | POST /v2/subscriptions/create (methods: ["PIX"]) | Requires ABACATEPAY_PIX_AUTOMATICO=true |
+| cartao | v2 | POST /v2/subscriptions/create (methods: ["CREDIT_CARD"]) | Requires ABACATEPAY_CARTAO=true |
 
-**Why:** V2 recurring (cartão + PIX automático) throws "not available" errors. Feature flags `ABACATEPAY_PIX_AUTOMATICO=true` and `ABACATEPAY_CARTAO=true` enable them when the account is upgraded — no code change needed.
+**Why:** AbacatePay sandbox does not support PIX Automático or Cartão — only one-shot PIX QR (v1) works. The v2 subscriptions endpoint rejects them with "PIX Automático is not available".
 
-## Payment method selection flow
+## PIX avulso v1 flow
 
-`/paywall` is a 2-step screen:
-1. Plan selection (pro_mensal / pro_anual)
-2. Method selection — PIX avulso always enabled; Cartão and PIX Automático shown as "Em breve" until env flags are set
+POST /v1/pixQrCode/create body: `{ amount: centavos, description, externalId: assinaturaId }`
+Response fields used: `data.id` (chargeId), `data.brCode` (copia-e-cola), `data.brCodeBase64` (QR image)
 
-`GET /assinatura/metodos` reads `ABACATEPAY_PIX_AUTOMATICO` and `ABACATEPAY_CARTAO` env vars to decide which methods to surface.
+Polling: `POST /assinatura/verificar-pix` → `GET /v1/pixQrCode/check?id=<chargeId>` → status === "PAID" → activate.
 
-## Subscription lifecycle
+## Activation
 
-- `status: pendente` → awaiting payment
-- `status: ativo` + `expira_em` → active PRO
-- Auto-expire runs JIT in `GET /assinatura`: sets `status: expirado` + resets `motoristas.plano → gratis`
-- `aviso_renovacao: true` returned when `expira_em` is within 3 days; shown as in-app banner on home.tsx
+Shared `activateAssinatura()` helper used by:
+- `POST /assinatura/verificar-pix` (client-triggered polling)
+- `POST /webhooks/abacatepay` (server push)
+- `POST /assinatura/confirmar-mock` (dev only)
 
-**How to apply:** Any time you touch subscription status checks, ensure `status === 'ativo' AND expira_em > now`. The `isActivePlan()` helper in assinaturas.ts enforces this.
+Idempotent via `pagamentosTable.abacatepay_charge_id` unique check.
 
-## Token storage
+## Webhook events handled
 
-Auth tokens stored in cookies (`estadia_token`, non-HttpOnly) with `localStorage` fallback for migration. `setAuthTokenGetter(getToken)` wired in App.tsx — no backend changes needed.
+v1: `billing.paid`, `pixQrCode.paid` — look up by `abacatepay_billing_id` (= chargeId) or `externalId` (= assinaturaId UUID)
+v2: `subscription.completed`, `subscription.renewed`, `subscription.payment_failed`, `subscription.cancelled`
+
+## Frontend flows
+
+- `pix_qr_code` present → inline QR (live v1 or mock). Live: also polls `verificar-pix` every 8s + "Já paguei" button.
+- `checkout_url` present → fullscreen iframe (v2).
+- `!is_live` → mock banner + "Confirmar (dev)" button.
+
+## Checkout store fields
+
+`billing_id`, `charge_id`, `checkout_url`, `pix_qr_code`, `pix_copia_cola`, `plano`, `valor`, `expira_em`, `is_live`
+
+## Paywall
+
+Step 1: plan selection. Step 2: method selection. Passes `{ plano, metodo }` to `POST /assinatura/checkout`.
+cartão and PIX automático cards show "Em breve" and are non-interactive until env flags are set.
+
+## 2-step paywall
+
+`aviso_renovacao`: computed JIT in GET /assinatura (within 3 days of expiry), never stored.
+
+## Env vars
+
+- `ABACATEPAY_API_KEY` — determines live vs mock mode
+- `ABACATEPAY_WEBHOOK_SECRET` — HMAC-SHA256 secret for v2 webhooks; v1 falls back to direct comparison
+- `ABACATEPAY_PIX_AUTOMATICO=true` — enables PIX automático method
+- `ABACATEPAY_CARTAO=true` — enables cartão method
+- `ABACATEPAY_PRODUCT_ID_MENSAL` / `ABACATEPAY_PRODUCT_ID_ANUAL` — skip v2 product creation

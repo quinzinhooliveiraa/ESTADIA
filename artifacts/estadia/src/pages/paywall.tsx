@@ -35,21 +35,22 @@ export default function Paywall() {
 
   const handleAssinar = () => {
     setCheckoutError(null);
-    if (selectedMetodo === 'pix_avulso') {
-      criarCheckout.mutate(
-        { data: { plano: selectedPlan } },
-        {
-          onSuccess: (data) => {
-            checkoutStore.set(data);
-            navigate('/pagamento');
-          },
-          onError: () => {
-            setCheckoutError('Não foi possível iniciar o pagamento. Verifique sua conexão e tente novamente.');
-          },
-        }
-      );
-    }
-    // pix_automatico and cartao are disabled until the account supports them
+    criarCheckout.mutate(
+      { data: { plano: selectedPlan, metodo: selectedMetodo } },
+      {
+        onSuccess: (data) => {
+          checkoutStore.set(data);
+          navigate('/pagamento');
+        },
+        onError: (err: any) => {
+          const msg =
+            err?.response?.data?.error ??
+            err?.message ??
+            'Não foi possível iniciar o pagamento. Verifique sua conexão e tente novamente.';
+          setCheckoutError(msg);
+        },
+      }
+    );
   };
 
   // ── STEP 1: Plan selection ─────────────────────────────────────────────────

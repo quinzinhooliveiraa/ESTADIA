@@ -302,29 +302,64 @@ export const CheckoutInputPlano = {
   pro_anual: 'pro_anual',
 } as const;
 
+export type CheckoutInputMetodo = typeof CheckoutInputMetodo[keyof typeof CheckoutInputMetodo];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CheckoutInputMetodo = {
+  pix_avulso: 'pix_avulso',
+  cartao: 'cartao',
+  pix_automatico: 'pix_automatico',
+} as const;
+
 export interface CheckoutInput {
   plano: CheckoutInputPlano;
+  /** Payment method. Defaults to pix_avulso. */
+  metodo?: CheckoutInputMetodo;
 }
 
 export interface CheckoutResult {
   billing_id: string;
+  /** PIX charge ID for v1 polling (= billing_id for pix_avulso) */
+  charge_id?: string | null;
+  /** Hosted checkout URL — present for cartao / pix_automatico (v2) */
+  checkout_url?: string | null;
+  /** Base64 QR code — present for pix_avulso (live v1) and mock mode */
+  pix_qr_code?: string | null;
+  /** PIX copia-e-cola string */
+  pix_copia_cola?: string | null;
+  plano?: 'pro_mensal' | 'pro_anual';
+  valor: number;
+  expira_em?: string;
   /** True when a real AbacatePay charge was created; false in mock/dev mode */
   is_live?: boolean;
-  /** Base64 QR code image */
-  pix_qr_code: string;
-  /** PIX copy-paste string */
-  pix_copia_cola: string;
-  valor: number;
-  expira_em: string;
 }
 
 export type AbacatePayWebhookPayloadData = {
+  subscription?: {
+    id: string;
+    frequency?: string;
+    status?: string;
+  };
+  payment?: {
+    id: string;
+    status?: string;
+    methods?: string[];
+  };
+  checkout?: {
+    id?: string;
+    externalId?: string | null;
+  };
+  /** v1 PIX avulso fields */
   id?: string;
+  externalId?: string | null;
   status?: string;
 };
 
 export interface AbacatePayWebhookPayload {
+  id?: string;
   event: string;
+  apiVersion?: number;
+  devMode?: boolean;
   data: AbacatePayWebhookPayloadData;
 }
 
