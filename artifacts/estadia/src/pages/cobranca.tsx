@@ -77,10 +77,22 @@ export default function Cobranca() {
       cobranca.url_verificacao,
     ].join('\n');
 
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    // Bug 3 / PWA: window.open with _blank is blocked in standalone mode.
+    // Detect standalone and navigate in the same window instead.
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    if (isStandalone) {
+      window.location.href = waUrl;
+    } else {
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   // D1: generate PDF with jsPDF + QR code
+  // Bug 3: use Web Share API in PWA standalone (doc.save triggers a download
+  // dialog that is suppressed in standalone mode on iOS/Android).
   const handleDownload = async () => {
     if (!guardNome()) return;
     try {
@@ -208,9 +220,25 @@ export default function Cobranca() {
       doc.text(splitFooter, margin, footerY);
 
       const dateStr = format(new Date(), 'ddMMyyyy');
-      doc.save(`cobranca-estadia-${dateStr}.pdf`);
-      toast({ title: 'PDF gerado com sucesso!' });
-    } catch (err) {
+      const fileName = `cobranca-estadia-${dateStr}.pdf`;
+      const pdfBlob = doc.output('blob');
+
+      // Try Web Share API first (works in PWA standalone on iOS/Android)
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })
+      ) {
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        await navigator.share({ files: [file], title: 'Cobrança ESTADIA' });
+        toast({ title: 'PDF compartilhado com sucesso!' });
+      } else {
+        // Fallback: standard browser download
+        doc.save(fileName);
+        toast({ title: 'PDF gerado com sucesso!' });
+      }
+    } catch (err: any) {
+      // navigator.share throws AbortError if user dismisses — treat as success
+      if (err?.name === 'AbortError') return;
       console.error('PDF generation error:', err);
       toast({ title: 'Erro ao gerar PDF', description: 'Tente novamente.', variant: 'destructive' });
     }

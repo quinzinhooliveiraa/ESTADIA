@@ -1,0 +1,49 @@
+# PROMPT — Correção de bugs ESTADIA (colar no Replit Agent)
+
+---
+
+Corrigir os bugs abaixo. Para cada um, investigue a causa raiz nos logs e no código ANTES de corrigir — não presuma, teste o fluxo real. Ao final, liste o que causou cada bug e o que mudou.
+
+## CONTEXTO CRÍTICO — o app roda como PWA INSTALADO
+
+O app é usado como PWA instalado (display-mode: standalone), não só no navegador. TODAS as correções precisam funcionar no modo PWA standalone, que tem restrições diferentes do navegador (downloads, window.open de nova aba, e localStorage podem falhar). Teste cada correção considerando o modo standalone.
+
+## BUG 1 — "Informe seu nome" mesmo com o nome já preenchido
+
+Ao baixar o PDF ou enviar a cobrança no WhatsApp, o app exige preencher o nome — mas o usuário JÁ preencheu o nome completo no perfil. Ou o nome não está sendo persistido no backend, ou a checagem lê de outro lugar que não o campo salvo.
+- Investigar: o salvamento do nome no perfil realmente persiste em `motoristas.nome`? A verificação feita antes de gerar cobrança / baixar PDF / enviar WhatsApp lê esse MESMO campo?
+- Corrigir para que, com o nome salvo, o PDF, o WhatsApp e a geração de cobrança funcionem sem bloquear.
+
+## BUG 2 — Exportar dados não funciona (e download em PWA)
+
+`GET /perfil/export` retorna os dados, mas o frontend não entrega nada (nem download, nem erro claro).
+- Disparar o download de um arquivo JSON com os dados retornados.
+- **Precisa funcionar em PWA standalone:** se o download direto falhar no modo instalado, implementar fallback (Web Share API para compartilhar o arquivo, ou abrir o conteúdo numa visualização dentro do app). Tratar erro de forma visível.
+
+## BUG 3 — Baixar PDF não funciona em PWA
+
+Mesmo problema de entrega de arquivo do Bug 2, aplicado ao PDF da cobrança. O PDF é gerado mas não chega ao usuário no modo instalado.
+- Garantir que "Baixar PDF" funcione em PWA standalone (mesma estratégia de fallback: Web Share API ou visualização in-app).
+
+## BUG 4 — Pagamento AbacatePay v2 falha ("não foi possível iniciar o pagamento")
+
+A chamada a `POST /v2/subscriptions/create` está falhando.
+- IMPORTANTE: testamos manualmente e o endpoint de PRODUTOS v2 exige os campos `externalId`, `currency` ("BRL") e `price` — funcionou com esses (retornou `success:true`). 
+- Para SUBSCRIPTIONS, confirme na documentação oficial (docs.abacatepay.com) o formato EXATO do body de `/v2/subscriptions/create`: especialmente se o item usa `id` ou `productId` para referenciar o produto (o código atual usa `id` — verificar se é esse o campo certo), e se algum campo como `returnUrl`/`completionUrl`/`methods` é obrigatório.
+- Logar o erro EXATO retornado pela API (sem expor a chave) para diagnóstico.
+- A chave v2 já está configurada com permissões CHECKOUT:CREATE e PRODUCT:CREATE.
+- **PWA:** o checkout v2 abre uma URL externa. No PWA standalone, `window.open` de nova aba pode ser bloqueado. Garantir que o usuário chegue na página de pagamento mesmo com o app instalado (navegar na própria janela se necessário, ou target apropriado).
+
+## BUG 5 — URL de verificação com localhost no documento
+
+O rodapé do documento de cobrança mostra "http://localhost/verificar/..." — deve usar a URL pública real de produção, não localhost. Usar a variável de ambiente de origem (APP_ORIGIN) para montar o link de verificação.
+
+## BUG 6 — Placa do veículo obrigatória antes da cobrança
+
+Hoje a placa não é obrigatória antes do CHEGUEI, mas ela aparece no documento de cobrança (documento com valor jurídico). 
+- Adicionar: se o veículo do usuário não tem placa cadastrada, pedir a placa no momento de apertar CHEGUEI (ou no onboarding), salvando em `veiculos.placa`.
+- A placa é necessária para o documento ser válido.
+
+## Ao final
+
+Para cada bug, confirme a correção testando o fluxo real (incluindo modo PWA quando aplicável). Liste a causa raiz e o que mudou em cada um.

@@ -195,6 +195,10 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
 
       // 2. Create subscription via v2 API
       // Permissions needed: CHECKOUT:CREATE (subscriptions are checkouts)
+      const appOrigin =
+        process.env.APP_ORIGIN?.split(",")[0]?.trim() ??
+        process.env.APP_URL ??
+        "";
       const subData = await abacateFetch("/subscriptions/create", {
         method: "POST",
         body: JSON.stringify({
@@ -205,6 +209,13 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
             .split(",")
             .map((m) => m.trim().toUpperCase()),
           externalId: assinaturaId,
+          // Return URLs: AbacatePay redirects here after checkout (optional but helps UX)
+          ...(appOrigin
+            ? {
+                returnUrl: `${appOrigin}/`,
+                completionUrl: `${appOrigin}/`,
+              }
+            : {}),
         }),
       });
 
@@ -256,8 +267,14 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
     } catch (err: any) {
       const abacateMsg: string | undefined =
         typeof err?.message === "string" ? err.message : undefined;
+      // Log the full AbacatePay response body so we can diagnose API errors
+      // without exposing the API key (abacateBody never contains the key).
       logger.error(
-        { status: err?.status, abacateMsg },
+        {
+          status: err?.status,
+          abacateMsg,
+          abacateBody: err?.abacateBody ?? null,
+        },
         "AbacatePay v2 checkout error"
       );
       res.status(502).json({

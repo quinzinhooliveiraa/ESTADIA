@@ -11,7 +11,8 @@ import {
   useCreateEspera,
   useGetEsperasResumo,
 } from '@workspace/api-client-react';
-import { Truck, MapPin, Loader2, Navigation, X } from 'lucide-react';
+import { Truck, MapPin, Loader2, Navigation, X, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 const CAPACITY_CHIPS = [
   { label: 'VUC',        tons: 4  },
@@ -40,6 +41,11 @@ export default function Home() {
   const [provisionalChip, setProvisionalChip] = useState<{ label: string; tons: number } | null>(null);
   const [customTons, setCustomTons] = useState('');
   const [loadingGps, setLoadingGps] = useState(false);
+
+  // Bug 6: plate collection for provisional vehicles
+  const [showPlacaModal, setShowPlacaModal] = useState(false);
+  const [placaInput, setPlacaInput] = useState('');
+  const [pendingTons, setPendingTons] = useState<number | null>(null);
 
   // D3: GPS explainer state
   const [showGpsExplainer, setShowGpsExplainer] = useState(false);
@@ -102,6 +108,31 @@ export default function Home() {
     );
   };
 
+  // Bug 6: once user confirms placa, create vehicle and proceed with GPS
+  const runChegueiWithPlaca = (tons: number, placa: string) => {
+    setLoadingGps(true);
+    createVeiculo.mutate({
+      data: { capacidade_ton: tons, tipo: provisionalChip?.label ?? 'Outro', placa: placa.trim().toUpperCase() }
+    }, {
+      onSuccess: (veiculo) => { doCreateEspera(veiculo.id); },
+      onError: () => {
+        setLoadingGps(false);
+        toast({ title: 'Erro ao registrar veículo', variant: 'destructive' });
+      }
+    });
+  };
+
+  const handleConfirmarPlaca = () => {
+    const tons = pendingTons;
+    if (!tons || tons <= 0) return;
+    if (!placaInput.trim()) {
+      toast({ title: 'Informe a placa do veículo', description: 'A placa é obrigatória para o documento de cobrança.', variant: 'destructive' });
+      return;
+    }
+    setShowPlacaModal(false);
+    runChegueiWithPlaca(tons, placaInput);
+  };
+
   // D3: build the actual action and gate it behind the GPS explainer on first use
   const buildAndRunCheguei = () => {
     if (hasVehicles) {
@@ -116,16 +147,10 @@ export default function Home() {
         toast({ title: 'Selecione a capacidade do veículo', variant: 'destructive' });
         return;
       }
-      setLoadingGps(true);
-      createVeiculo.mutate({
-        data: { capacidade_ton: tons, tipo: provisionalChip?.label ?? 'Outro', placa: '' }
-      }, {
-        onSuccess: (veiculo) => { doCreateEspera(veiculo.id); },
-        onError: () => {
-          setLoadingGps(false);
-          toast({ title: 'Erro ao registrar veículo', variant: 'destructive' });
-        }
-      });
+      // Bug 6: ask for plate before creating the provisional vehicle
+      setPendingTons(tons);
+      setPlacaInput('');
+      setShowPlacaModal(true);
     }
   };
 
@@ -286,6 +311,56 @@ export default function Home() {
           </Button>
         </div>
       </div>
+
+      {/* Bug 6: plate input modal for provisional vehicles */}
+      {showPlacaModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card border border-card-border rounded-t-3xl p-6 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Truck className="w-6 h-6 text-primary" />
+              </div>
+              <button
+                onClick={() => setShowPlacaModal(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <h2 className="text-xl font-display text-foreground mb-1">Qual a placa do veículo?</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+              A placa é obrigatória para o documento de cobrança ter validade legal.
+            </p>
+
+            <Input
+              className="h-12 text-center text-lg font-mono font-bold uppercase tracking-widest bg-background mb-4"
+              placeholder="ABC-1234"
+              value={placaInput}
+              maxLength={8}
+              autoFocus
+              onChange={(e) => setPlacaInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7))}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmarPlaca(); }}
+            />
+
+            <Button
+              size="lg"
+              className="w-full h-14 text-base font-bold bg-primary text-primary-foreground hover:bg-primary/90 mb-2"
+              onClick={handleConfirmarPlaca}
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Confirmar e registrar chegada
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => setShowPlacaModal(false)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* D3: GPS permission explainer modal */}
       {showGpsExplainer && (

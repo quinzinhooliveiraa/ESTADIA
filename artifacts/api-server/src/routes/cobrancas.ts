@@ -36,16 +36,31 @@ async function buildCobrancaResponse(cobranca: typeof cobrancasTable.$inferSelec
   const espera = esperas[0];
 
   let veiculo;
+  let motoristaNome: string | null = null;
+
   if (espera) {
-    const veiculos = await db
-      .select()
-      .from(veiculosTable)
-      .where(eq(veiculosTable.id, espera.veiculo_id))
-      .limit(1);
-    veiculo = veiculos[0];
+    const [veiculoRow, motoristaRow] = await Promise.all([
+      db
+        .select()
+        .from(veiculosTable)
+        .where(eq(veiculosTable.id, espera.veiculo_id))
+        .limit(1),
+      db
+        .select({ nome: motoristasTable.nome })
+        .from(motoristasTable)
+        .where(eq(motoristasTable.id, espera.motorista_id))
+        .limit(1),
+    ]);
+    veiculo = veiculoRow[0];
+    motoristaNome = motoristaRow[0]?.nome ?? null;
   }
 
-  const baseUrl = process.env.APP_URL ?? "http://localhost";
+  // Bug 5: use APP_ORIGIN (never falls back to localhost in production)
+  const baseUrl =
+    process.env.APP_ORIGIN?.split(",")[0]?.trim() ??
+    process.env.APP_URL ??
+    "http://localhost";
+
   return {
     id: cobranca.id,
     espera_id: cobranca.espera_id,
@@ -56,6 +71,8 @@ async function buildCobrancaResponse(cobranca: typeof cobrancasTable.$inferSelec
     status_pagamento: cobranca.status_pagamento,
     enviada_via: cobranca.enviada_via,
     created_at: cobranca.created_at,
+    // Bug 1: include motorista name so frontend guard works when name is saved
+    motorista_nome: motoristaNome,
     espera: espera
       ? {
           ...espera,

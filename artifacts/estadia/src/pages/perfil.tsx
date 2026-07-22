@@ -57,20 +57,36 @@ export default function Perfil() {
   const handleExportDados = async () => {
     setExportando(true);
     try {
-      const res = await fetch('/api/perfil/export');
+      const token = localStorage.getItem('estadia_token');
+      const res = await fetch('/api/perfil/export', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'meus-dados-estadia.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast({ title: 'Dados exportados', description: 'O arquivo foi baixado.' });
-    } catch {
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const fileName = 'meus-dados-estadia.json';
+
+      // Bug 2: Web Share API works in PWA standalone; anchor-click does not.
+      if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: 'application/json' })] })) {
+        const file = new File([blob], fileName, { type: 'application/json' });
+        await navigator.share({ files: [file], title: 'Meus dados ESTADIA' });
+        toast({ title: 'Dados compartilhados com sucesso!' });
+      } else {
+        // Standard browser fallback
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast({ title: 'Dados exportados', description: 'O arquivo foi baixado.' });
+      }
+    } catch (err: any) {
+      // navigator.share throws AbortError if user dismisses — treat as success
+      if (err?.name === 'AbortError') return;
       toast({ title: 'Erro ao exportar', description: 'Não foi possível exportar seus dados. Tente novamente.', variant: 'destructive' });
     } finally {
       setExportando(false);

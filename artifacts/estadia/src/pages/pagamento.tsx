@@ -87,9 +87,17 @@ export default function Pagamento() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Open hosted AbacatePay checkout in a new tab (v2 live mode) ──────────
+  // ── Open hosted AbacatePay checkout (v2 live mode) ────────────────────────
+  // Bug 4 / PWA: window.open with _blank is suppressed in standalone mode.
+  // In standalone, navigate in the same window (user taps Back to return).
   const handleOpenCheckout = () => {
-    if (checkout.checkout_url) {
+    if (!checkout.checkout_url) return;
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true;
+    if (isStandalone) {
+      window.location.href = checkout.checkout_url;
+    } else {
       window.open(checkout.checkout_url, '_blank', 'noopener,noreferrer');
     }
   };

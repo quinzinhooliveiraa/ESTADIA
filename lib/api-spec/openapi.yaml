@@ -827,6 +827,9 @@ components:
           type: string
         url_verificacao:
           type: string
+        motorista_nome:
+          type: ["string", "null"]
+          description: Driver's full name from their profile, for document generation.
         valor:
           type: number
         status_pagamento:
