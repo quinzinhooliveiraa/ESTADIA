@@ -11,7 +11,6 @@ import {
   Loader2,
   ArrowLeft,
   CheckCircle2,
-  ExternalLink,
 } from 'lucide-react';
 import { checkoutStore } from '@/lib/checkout-store';
 
@@ -26,6 +25,7 @@ export default function Pagamento() {
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -34,8 +34,8 @@ export default function Pagamento() {
   const isLive: boolean = checkout?.is_live === true;
 
   // Two display modes:
-  //   checkout_url → hosted AbacatePay page (v2 live mode)
-  //   pix_qr_code  → inline QR code (mock/dev mode or PIX Automático)
+  //   checkout_url → embedded iframe (v2 live mode)
+  //   pix_qr_code  → inline QR code (mock/dev mode)
   const hasCheckoutUrl = Boolean(checkout?.checkout_url);
   const hasInlinePix = Boolean(checkout?.pix_qr_code && checkout?.pix_copia_cola);
 
@@ -78,28 +78,13 @@ export default function Pagamento() {
 
   if (!checkout) return null;
 
-  // ── Inline PIX copy handler (mock/dev or PIX Automático) ─────────────────
+  // ── Inline PIX copy handler (mock/dev) ───────────────────────────────────
   const handleCopy = () => {
     if (!checkout.pix_copia_cola) return;
     navigator.clipboard.writeText(checkout.pix_copia_cola);
     setCopied(true);
     toast({ title: 'Código PIX copiado' });
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  // ── Open hosted AbacatePay checkout (v2 live mode) ────────────────────────
-  // Bug 4 / PWA: window.open with _blank is suppressed in standalone mode.
-  // In standalone, navigate in the same window (user taps Back to return).
-  const handleOpenCheckout = () => {
-    if (!checkout.checkout_url) return;
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as any).standalone === true;
-    if (isStandalone) {
-      window.location.href = checkout.checkout_url;
-    } else {
-      window.open(checkout.checkout_url, '_blank', 'noopener,noreferrer');
-    }
   };
 
   // ── Mock-only: confirm payment manually ──────────────────────────────────
@@ -129,6 +114,69 @@ export default function Pagamento() {
     }
   };
 
+  // ── FLOW A: Embedded checkout iframe (v2 live mode) ──────────────────────
+  if (hasCheckoutUrl) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        {/* Slim header */}
+        <div className="flex items-center gap-3 px-4 h-14 border-b border-border bg-background shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-ml-2"
+            onClick={() => {
+              checkoutStore.clear();
+              setLocation('/paywall');
+            }}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <span className="text-base font-semibold">Pagamento seguro</span>
+
+          {/* Polling indicator */}
+          {!timedOut && (
+            <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+              Aguardando…
+            </div>
+          )}
+        </div>
+
+        {/* Iframe fills the rest of the screen */}
+        <div className="relative flex-1 overflow-hidden">
+          {/* Loading skeleton while iframe initialises */}
+          {!iframeLoaded && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Carregando checkout…</p>
+            </div>
+          )}
+
+          <iframe
+            src={checkout.checkout_url!}
+            title="Checkout AbacatePay"
+            className="w-full h-full border-0"
+            onLoad={() => setIframeLoaded(true)}
+            allow="payment"
+          />
+        </div>
+
+        {/* Timeout fallback bar */}
+        {timedOut && (
+          <div className="shrink-0 p-4 border-t border-border bg-background text-center">
+            <p className="text-sm text-muted-foreground mb-3">
+              Tempo esgotado. Verifique seu banco e volte para conferir o status.
+            </p>
+            <Button variant="outline" onClick={() => setLocation('/paywall')}>
+              Voltar aos planos
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── FLOW B: Inline PIX QR code (mock/dev) ───────────────────────────────
   return (
     <AppLayout showNav={false}>
       <div className="flex flex-col h-[100dvh] bg-background p-6">
@@ -146,49 +194,7 @@ export default function Pagamento() {
         </div>
 
         <div className="flex-1 flex flex-col items-center">
-
-          {/* ── FLOW A: Hosted checkout URL (v2 live mode) ─────────────────────── */}
-          {hasCheckoutUrl && (
-            <>
-              <div className="w-full bg-card border border-border rounded-2xl p-6 mb-6 text-center">
-                <p className="text-muted-foreground text-sm mb-4">
-                  Clique no botão abaixo para pagar via PIX ou cartão na página segura da
-                  AbacatePay. Após o pagamento, volte aqui — a ativação é automática.
-                </p>
-                <Button
-                  size="lg"
-                  className="w-full h-14 font-bold text-base gap-2"
-                  onClick={handleOpenCheckout}
-                >
-                  <ExternalLink className="w-5 h-5" />
-                  Ir para o pagamento
-                </Button>
-              </div>
-
-              {timedOut ? (
-                <div className="text-center text-muted-foreground text-sm">
-                  <p className="mb-3">Tempo esgotado. Tente novamente.</p>
-                  <Button variant="outline" onClick={() => setLocation('/paywall')}>
-                    Voltar aos planos
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 mt-4">
-                  <div className="flex items-center gap-3 text-muted-foreground font-medium">
-                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    Aguardando confirmação do pagamento…
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center max-w-xs">
-                    Após pagar na página da AbacatePay, o plano PRO é ativado automaticamente
-                    em alguns segundos.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── FLOW B: Inline PIX QR code (mock/dev or PIX Automático) ──────── */}
-          {!hasCheckoutUrl && hasInlinePix && (
+          {hasInlinePix ? (
             <>
               <p className="text-muted-foreground text-center mb-6">
                 Escaneie o QR Code ou copie o código para pagar no app do seu banco.
@@ -235,7 +241,7 @@ export default function Pagamento() {
                     Aguardando confirmação…
                   </div>
 
-                  {/* Only shown in mock/dev mode — live mode relies solely on the webhook */}
+                  {/* Only shown in mock/dev mode */}
                   {!isLive && (
                     <div className="w-full flex flex-col gap-2">
                       {confirmError && (
@@ -273,10 +279,8 @@ export default function Pagamento() {
                 </div>
               )}
             </>
-          )}
-
-          {/* ── FALLBACK: neither checkout_url nor inline PIX ─────────────────── */}
-          {!hasCheckoutUrl && !hasInlinePix && (
+          ) : (
+            /* Neither checkout_url nor inline PIX */
             <div className="text-center text-muted-foreground text-sm mt-8">
               <p className="mb-3">Dados de pagamento indisponíveis. Tente novamente.</p>
               <Button variant="outline" onClick={() => setLocation('/paywall')}>
