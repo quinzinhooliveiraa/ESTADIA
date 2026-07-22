@@ -16,8 +16,8 @@ import {
 import { checkoutStore } from '@/lib/checkout-store';
 import { getToken } from '@/lib/token';
 
-const POLLING_INTERVAL_MS = 4_000;
-const VERIFY_INTERVAL_MS = 8_000; // how often to call verify-pix
+const POLLING_INTERVAL_MS = 3_000;
+const VERIFY_INTERVAL_MS = 3_000; // how often to call verify-pix
 const POLLING_MAX_MS = 30 * 60 * 1_000; // 30 minutes
 
 const PLANO_LABELS: Record<string, { titulo: string; preco: string; ciclo: string }> = {
@@ -79,11 +79,8 @@ export default function Pagamento() {
         body: JSON.stringify({ charge_id: chargeId }),
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.ativado) {
-          // Refresh the subscription query to pick up activation
-          queryClient.invalidateQueries({ queryKey: getGetAssinaturaQueryKey() });
-        }
+        // Always refresh — catches both verify-pix activation and webhook-activated cases
+        queryClient.invalidateQueries({ queryKey: getGetAssinaturaQueryKey() });
       }
     } catch {
       // ignore — polling continues
@@ -272,11 +269,22 @@ export default function Pagamento() {
 
               {/* QR Code */}
               <div className="bg-white p-4 rounded-2xl mb-6 w-56 h-56 flex items-center justify-center shadow-sm">
-                <img
-                  src={`data:image/png;base64,${checkout.pix_qr_code}`}
-                  alt="QR Code PIX"
-                  className="w-full h-full object-contain"
-                />
+                {checkout.pix_qr_code ? (
+                  <img
+                    src={
+                      checkout.pix_qr_code.trimStart().startsWith('data:')
+                        ? checkout.pix_qr_code
+                        : `data:image/png;base64,${checkout.pix_qr_code.replace(/\s/g, '')}`
+                    }
+                    alt="QR Code PIX"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      console.error('[QR] Failed to render brCodeBase64 as image', e);
+                    }}
+                  />
+                ) : (
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                )}
               </div>
 
               {/* Copia e cola */}
