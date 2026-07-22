@@ -497,6 +497,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Assinatura"
 
+  /assinatura/metodos:
+    get:
+      operationId: getMetodosAssinatura
+      tags: [subscriptions]
+      summary: Detect which payment methods are available for this account
+      responses:
+        "200":
+          description: Available payment methods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetodosAssinatura"
+
   /assinatura/checkout:
     post:
       operationId: criarCheckout
@@ -910,9 +923,26 @@ components:
         metodo:
           type: ["string", "null"]
           enum: [pix, cartao, null]
+        aviso_renovacao:
+          type: boolean
+          description: True when the subscription expires within 3 days
         created_at:
           type: string
           format: date-time
+
+    MetodosAssinatura:
+      type: object
+      required: [pix_avulso, pix_automatico, cartao]
+      properties:
+        pix_avulso:
+          type: boolean
+          description: PIX one-time charge (v1) — always available
+        pix_automatico:
+          type: boolean
+          description: Recurring PIX via AbacatePay v2 — requires account feature flag
+        cartao:
+          type: boolean
+          description: Credit card via AbacatePay v2 — requires account feature flag
 
     CheckoutInput:
       type: object

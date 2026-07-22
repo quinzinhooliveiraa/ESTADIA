@@ -12,7 +12,6 @@ import {
   useCreateVeiculo,
   useDeleteVeiculo,
   useCancelarAssinatura,
-  useExportDados,
   useDeletePerfil,
   useLogout,
   useUpdatePerfil,
@@ -20,6 +19,7 @@ import {
   getListVeiculosQueryKey,
   getGetAssinaturaQueryKey,
 } from '@workspace/api-client-react';
+import { getToken } from '@/lib/token';
 import { useQueryClient } from '@tanstack/react-query';
 import { User, Truck, LogOut, Trash2, Download, AlertTriangle, Loader2, Pencil, Check, X } from 'lucide-react';
 import {
@@ -48,10 +48,40 @@ export default function Perfil() {
   const createVeiculo = useCreateVeiculo();
   const deleteVeiculo = useDeleteVeiculo();
   const cancelarAssinatura = useCancelarAssinatura();
-  const exportDados = useExportDados();
   const deletePerfil = useDeletePerfil();
   const logout = useLogout();
   const updatePerfil = useUpdatePerfil();
+
+  const [exportando, setExportando] = useState(false);
+
+  const handleExport = async () => {
+    setExportando(true);
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api/perfil/export`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meus-dados-estadia.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Download iniciado', description: 'Arquivo "meus-dados-estadia.json" salvo.' });
+    } catch (err) {
+      toast({
+        title: 'Falha ao exportar',
+        description: err instanceof Error ? err.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const [novaPlaca, setNovaPlaca] = useState('');
   const [novaCapacidade, setNovaCapacidade] = useState('');
@@ -305,10 +335,13 @@ export default function Perfil() {
           <Button
             variant="ghost"
             className="w-full justify-start text-foreground mb-1"
-            onClick={() => exportDados.refetch().then(() => toast({ title: 'Exportação solicitada', description: 'Seus dados foram exportados.' }))}
+            onClick={handleExport}
+            disabled={exportando}
           >
-            <Download className="w-4 h-4 mr-3 text-muted-foreground" />
-            Exportar meus dados
+            {exportando
+              ? <Loader2 className="w-4 h-4 mr-3 text-muted-foreground animate-spin" />
+              : <Download className="w-4 h-4 mr-3 text-muted-foreground" />}
+            {exportando ? 'Exportando…' : 'Exportar meus dados'}
           </Button>
 
           <AlertDialog>
