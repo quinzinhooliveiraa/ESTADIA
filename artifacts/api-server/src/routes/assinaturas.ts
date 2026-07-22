@@ -72,11 +72,10 @@ async function abacateFetch(
 
 /**
  * Ensure an AbacatePay v2 product exists for the given plan.
- * Priority: env var → in-memory cache → create via API.
- * Required permissions: PRODUCT:CREATE, PRODUCT:READ
+ * Priority: env var → in-memory cache → create via API → list & match on "already exists".
  */
 async function getOrCreateProductId(plano: string): Promise<string> {
-  // 1. Env var takes precedence
+  // 1. Env var takes precedence (set these in production to skip API calls entirely)
   const envKey =
     plano === "pro_mensal"
       ? "ABACATEPAY_PRODUCT_ID_MENSAL"
@@ -87,23 +86,44 @@ async function getOrCreateProductId(plano: string): Promise<string> {
   // 2. In-memory cache (survives the process lifetime)
   if (productIdCache[plano]) return productIdCache[plano];
 
-  // 3. Create product via API
+  // 3. Try to create the product
+  const externalId = `estadia-${plano}`;
   logger.info({ plano }, "Creating AbacatePay v2 product (not found in env/cache)");
-  const data = await abacateFetch("/products/create", {
-    method: "POST",
-    body: JSON.stringify({
-      externalId: `estadia-${plano}`,
-      name: DESCRICOES[plano],
-      description: `${DESCRICOES[plano]} — app de cobrança de estadia para motoristas (Lei 13.103/2015)`,
-      price: Math.round(PRECOS[plano] * 100), // centavos
-      currency: "BRL",
-      cycle: CYCLES[plano],
-    }),
-  });
-  const id: string = data.id;
-  productIdCache[plano] = id;
-  logger.info({ plano, productId: id }, "AbacatePay v2 product created and cached");
-  return id;
+  try {
+    const data = await abacateFetch("/products/create", {
+      method: "POST",
+      body: JSON.stringify({
+        externalId,
+        name: DESCRICOES[plano],
+        description: `${DESCRICOES[plano]} — app de cobrança de estadia para motoristas (Lei 13.103/2015)`,
+        price: Math.round(PRECOS[plano] * 100), // centavos
+        currency: "BRL",
+        cycle: CYCLES[plano],
+      }),
+    });
+    const id: string = data.id;
+    productIdCache[plano] = id;
+    logger.info({ plano, productId: id }, "AbacatePay v2 product created and cached");
+    return id;
+  } catch (createErr: any) {
+    // 4. If product already exists, find it in the list
+    const alreadyExists =
+      typeof createErr?.message === "string" &&
+      createErr.message.toLowerCase().includes("already exists");
+    if (!alreadyExists) throw createErr; // unexpected error — re-throw
+
+    logger.info({ plano, externalId }, "Product already exists — fetching from list");
+    const list: any[] = await abacateFetch("/products/list", { method: "GET" });
+    const found = (Array.isArray(list) ? list : []).find(
+      (p: any) => p.externalId === externalId
+    );
+    if (!found?.id) {
+      throw new Error(`Produto '${externalId}' não encontrado na lista da AbacatePay`);
+    }
+    productIdCache[plano] = found.id;
+    logger.info({ plano, productId: found.id }, "AbacatePay v2 product found in list and cached");
+    return found.id;
+  }
 }
 
 // ── Webhook HMAC signature verification (v2) ─────────────────────────────────
