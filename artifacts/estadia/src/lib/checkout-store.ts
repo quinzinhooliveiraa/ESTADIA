@@ -19,6 +19,8 @@ export interface CheckoutData {
   valor?: number;
   expira_em?: string;
   is_live?: boolean;
+  /** True when the active AbacatePay key is a sandbox/dev key (abc_dev_* prefix). */
+  is_sandbox?: boolean;
 }
 
 let _data: CheckoutData | null = null;

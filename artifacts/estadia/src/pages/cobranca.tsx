@@ -39,7 +39,7 @@ export default function Cobranca() {
     : null;
 
   // B3: identification footer text
-  const rodapeTexto = `Documento gerado eletronicamente pelo transportador por meio da plataforma ESTADIA, com registro georreferenciado de chegada. Verifique a autenticidade em ${cobranca.url_verificacao}`;
+  const rodapeTexto = `Documento emitido eletronicamente pelo transportador por meio da plataforma ESTADIA. O registro de chegada é georreferenciado e possui data/hora imutáveis. Autenticidade verificável em: ${cobranca.url_verificacao}`;
 
   // Guard: require motorista name before generating any document
   const guardNome = (): boolean => {
@@ -182,11 +182,43 @@ export default function Cobranca() {
         y += 5;
         const thumbSize = 36;
         const thumbGap = 4;
+
+        // Helper: resolve natural dimensions to preserve aspect ratio (letterbox)
+        const getImgDims = (src: string): Promise<{ w: number; h: number }> =>
+          new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+            img.onerror = () => resolve({ w: 1, h: 1 });
+            img.src = src;
+          });
+
         for (let i = 0; i < Math.min(cobranca.espera.fotos.length, 4); i++) {
           try {
-            const mimeMatch = cobranca.espera.fotos[i].match(/^data:(image\/\w+);/);
+            const src = cobranca.espera.fotos[i];
+            const mimeMatch = src.match(/^data:(image\/\w+);/);
             const fmt = mimeMatch?.[1] === 'image/png' ? 'PNG' : 'JPEG';
-            doc.addImage(cobranca.espera.fotos[i], fmt, margin + i * (thumbSize + thumbGap), y, thumbSize, thumbSize);
+            const { w, h } = await getImgDims(src);
+            const aspect = w / h;
+
+            // Fit within thumbSize × thumbSize without distortion (letterbox)
+            let imgW = thumbSize;
+            let imgH = thumbSize;
+            let offX = 0;
+            let offY = 0;
+            if (aspect > 1) {
+              imgH = thumbSize / aspect;
+              offY = (thumbSize - imgH) / 2;
+            } else {
+              imgW = thumbSize * aspect;
+              offX = (thumbSize - imgW) / 2;
+            }
+
+            doc.addImage(
+              src, fmt,
+              margin + i * (thumbSize + thumbGap) + offX,
+              y + offY,
+              imgW, imgH
+            );
           } catch { /* skip bad image */ }
         }
         y += thumbSize + 6;
@@ -223,17 +255,32 @@ export default function Cobranca() {
       const fileName = `cobranca-estadia-${dateStr}.pdf`;
       const pdfBlob = doc.output('blob');
 
-      // Try Web Share API first (works in PWA standalone on iOS/Android)
-      if (
-        navigator.canShare &&
-        navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })
-      ) {
-        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-        await navigator.share({ files: [file], title: 'Cobrança ESTADIA' });
-        toast({ title: 'PDF compartilhado com sucesso!' });
-      } else {
-        // Fallback: standard browser download
-        doc.save(fileName);
+      // Try Web Share API first (works in PWA standalone on iOS/Android).
+      // Chrome desktop: canShare may return true for files but share() can still throw —
+      // always wrap in try/catch and fall through to anchor download on failure.
+      let sharedViaApi = false;
+      try {
+        const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare?.({ files: [pdfFile] })) {
+          await navigator.share({ files: [pdfFile], title: 'Cobrança ESTADIA' });
+          sharedViaApi = true;
+          toast({ title: 'PDF compartilhado com sucesso!' });
+        }
+      } catch (shareErr: any) {
+        if (shareErr?.name === 'AbortError') return; // user dismissed — not an error
+        // share not supported or failed — fall through to download below
+      }
+
+      if (!sharedViaApi) {
+        // Fallback: anchor-click download (works on Chrome desktop + desktop browsers)
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
         toast({ title: 'PDF gerado com sucesso!' });
       }
     } catch (err: any) {

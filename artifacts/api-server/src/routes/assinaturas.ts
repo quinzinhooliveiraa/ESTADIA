@@ -58,6 +58,18 @@ function isLiveMode(): boolean {
   return isV1Available() || isV2Available();
 }
 
+/**
+ * True when the active key is a sandbox/development key.
+ * AbacatePay sandbox keys start with "abc_dev_".
+ * Can also be forced via ABACATEPAY_SANDBOX=true.
+ */
+function isSandbox(): boolean {
+  if (process.env.ABACATEPAY_SANDBOX === "true") return true;
+  const v1Key = process.env.ABACATEPAY_API_KEY_V1 ?? "";
+  const v2Key = process.env.ABACATEPAY_API_KEY ?? "";
+  return v1Key.startsWith("abc_dev_") || v2Key.startsWith("abc_dev_");
+}
+
 // ── AbacatePay v1 helper ───────────────────────────────────────────────────────
 async function abacateFetchV1(
   path: string,
@@ -301,6 +313,18 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
         const brCode: string | undefined = data.brCode;
         const brCodeBase64: string | undefined = data.brCodeBase64;
 
+        logger.info(
+          {
+            chargeId,
+            hasBrCode: !!brCode,
+            brCodeLength: brCode?.length,
+            hasBrCodeBase64: !!brCodeBase64,
+            brCodeBase64Length: brCodeBase64?.length,
+            brCodeBase64Prefix: brCodeBase64?.slice(0, 30),
+          },
+          "AbacatePay v1 PIX create response received"
+        );
+
         if (!brCode || !brCodeBase64) {
           logger.error({ data }, "AbacatePay v1 PIX: missing brCode in response");
           res.status(502).json({ error: "Resposta inesperada do gateway de pagamento." });
@@ -334,6 +358,7 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
           valor,
           expira_em: expiraEm.toISOString(),
           is_live: true,
+          is_sandbox: isSandbox(),
         });
         return;
       } catch (err: any) {
@@ -404,6 +429,7 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
           valor,
           expira_em: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           is_live: true,
+          is_sandbox: isSandbox(),
         });
         return;
       } catch (err: any) {
@@ -453,6 +479,7 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
     valor,
     expira_em: expiraEm.toISOString(),
     is_live: false,
+    is_sandbox: false,
   });
 });
 

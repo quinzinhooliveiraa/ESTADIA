@@ -1,0 +1,47 @@
+# PROMPT — Acabamentos finais ESTADIA (colar no Replit Agent)
+
+Corrigir os itens abaixo. Para cada um, INVESTIGUE a causa real (logs, resposta da API, teste no fluxo) antes de corrigir — vários já tiveram tentativas anteriores, então confirme onde está o problema de verdade. App roda como PWA instalado (standalone) — correções precisam funcionar nesse modo. Ao final, liste causa e correção de cada item.
+
+## 1. QR CODE PIX — garantir que é um código PIX válido e visível
+
+O QR renderiza, mas precisamos ter CERTEZA de que o brCode (copia-e-cola) é um código PIX legítimo retornado pela API, não um texto qualquer.
+- Confirmar que o `pix_copia_cola` (brCode) exibido é exatamente o brCode retornado por /v1/pixQrCode/create, associado ao charge_id daquela cobrança. Logar a resposta da API para verificar.
+- Se a API retornar o QR em base64 (brCodeBase64), usar essa imagem. Se retornar só o texto, gerar o QR no frontend a partir do brCode com a lib `qrcode`. O QR e o texto devem SEMPRE corresponder à mesma cobrança (mesmo charge_id).
+- Garantir que a imagem do QR apareça de fato.
+
+## 2. Confirmação do pagamento PIX (o mecanismo já funciona — reforçar e amarrar)
+
+O fluxo já funciona no sandbox (simular pagamento no painel → app vira PRO). Reforçar a robustez:
+- O polling em GET /v1/pixQrCode/check?id=<charge_id> (chave V1) deve usar SEMPRE o charge_id exato da cobrança gerada (nunca ativar PRO sem esse match). A cada 3s enquanto o QR está na tela.
+- Quando status = PAID, ativar PRO (30 dias mensal / 365 anual), status "ativo", navegar para sucesso.
+- Webhook v1 também ativa (idempotente) se chegar antes do polling.
+- MANTER o comportamento atual (excelente): o botão "Já paguei" NÃO ativa nada por conta própria — só o AbacatePay confirmando de verdade ativa o PRO. Usuário não consegue virar PRO sem pagamento confirmado.
+
+## 3. Indicador de modo de teste (sandbox)
+
+Enquanto a conta AbacatePay está em sandbox (chave abc_dev_), os pagamentos são SIMULADOS, não reais. Para não confundir teste com produção:
+- Quando a chave em uso for de desenvolvimento/sandbox (prefixo abc_dev_ ou variável ABACATEPAY_SANDBOX=true), exibir na tela de pagamento um aviso discreto: "Modo de teste — pagamento simulado". Em produção (chave prod), o aviso não aparece.
+
+## 4. Fotos deformadas no PDF
+
+No PDF da cobrança (cobranca.tsx / jsPDF), as fotos anexadas saem esticadas (aspect ratio distorcido). Corrigir: calcular a proporção real de cada imagem (largura/altura originais) e encaixá-la na área do PDF mantendo a proporção (fit sem distorção, com letterbox se necessário). Testar com foto retrato e paisagem.
+
+## 5. Exportar dados — erro no Chrome e desconfigurado no PWA
+
+- No Chrome desktop dá erro ao exportar; no PWA sai desconfigurado.
+- Investigar o erro no desktop (provável falha no navigator.share, que nem todo desktop suporta — precisa de fallback robusto para download via blob + anchor).
+- O conteúdo exportado hoje é JSON cru, ilegível para o motorista. Além do JSON técnico (conformidade LGPD), gerar também um resumo legível em texto simples (nome, telefone, veículos, esperas com datas/valores, assinatura) para o usuário entender seus dados.
+- Funcionar tanto no Chrome desktop quanto no PWA standalone.
+
+## 6. Documento de cobrança — verificar link e clareza
+
+- Confirmar que o link de verificação usa a URL de PRODUÇÃO (APP_ORIGIN), nunca localhost, em todos os lugares (tela e PDF).
+- Revisar o texto do rodapé de autenticidade para ficar claro e profissional.
+- Confirmar que a página pública /verificar/<token> abre e mostra os dados do registro corretamente.
+
+## 7. Confirmar migração do token (in-app browsers)
+
+O código já migrou o token de sessão para cookie (lib/token.ts). Confirmar que NÃO resta nenhum ponto crítico lendo o token só de localStorage (o login precisa funcionar em WebView do Instagram/TikTok/WhatsApp). Verificar App.tsx e qualquer fetch autenticado.
+
+## Ao final
+Testar cada fluxo no modo PWA standalone. Listar causa raiz e correção de cada item.

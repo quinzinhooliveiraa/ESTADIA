@@ -65,21 +65,67 @@ export default function Perfil() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const fileName = 'meus-dados-estadia.json';
 
-      // Bug 2: Web Share API works in PWA standalone; anchor-click does not.
-      if (navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: 'application/json' })] })) {
-        const file = new File([blob], fileName, { type: 'application/json' });
-        await navigator.share({ files: [file], title: 'Meus dados ESTADIA' });
-        toast({ title: 'Dados compartilhados com sucesso!' });
-      } else {
-        // Standard browser fallback
-        const url = URL.createObjectURL(blob);
+      // ── Human-readable summary ─────────────────────────────────────────────
+      const m = data.motorista ?? {};
+      const linhas: string[] = [
+        '============================',
+        '  MEUS DADOS — ESTADIA APP',
+        '============================',
+        '',
+        '── PERFIL ──────────────────',
+        `Nome:     ${m.nome ?? '-'}`,
+        `Telefone: ${m.telefone ?? '-'}`,
+        `Plano:    ${m.plano ?? 'gratuito'}`,
+        '',
+        '── VEÍCULOS ────────────────',
+      ];
+      for (const v of data.veiculos ?? []) {
+        linhas.push(`• Placa: ${v.placa}  |  Capacidade: ${v.capacidade_ton} ton`);
+      }
+      if (!data.veiculos?.length) linhas.push('(nenhum veículo cadastrado)');
+      linhas.push('');
+      linhas.push('── REGISTROS DE ESPERA ─────');
+      for (const e of data.esperas ?? []) {
+        const chegada = e.chegada_ts ? new Date(e.chegada_ts).toLocaleString('pt-BR') : '-';
+        const saida   = e.saida_ts   ? new Date(e.saida_ts).toLocaleString('pt-BR')   : 'em aberto';
+        linhas.push(`Data chegada: ${chegada}`);
+        linhas.push(`Data saída:   ${saida}`);
+        if (e.valor_cobrado != null) {
+          linhas.push(`Valor cobrado: R$ ${Number(e.valor_cobrado).toFixed(2)}`);
+        }
+        linhas.push('');
+      }
+      if (!data.esperas?.length) linhas.push('(nenhum registro de espera)');
+      linhas.push('');
+      linhas.push('── DADOS TÉCNICOS (LGPD) ───');
+      linhas.push(JSON.stringify(data, null, 2));
+
+      const txt = linhas.join('\n');
+      const txtBlob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      const txtFileName = 'meus-dados-estadia.txt';
+      const txtFile = new File([txtBlob], txtFileName, { type: 'text/plain' });
+
+      // Try Web Share API (works in PWA standalone on iOS/Android).
+      // Guard against Chrome desktop which may throw on files share.
+      let sharedViaApi = false;
+      try {
+        if (navigator.canShare?.({ files: [txtFile] })) {
+          await navigator.share({ files: [txtFile], title: 'Meus dados ESTADIA' });
+          sharedViaApi = true;
+          toast({ title: 'Dados compartilhados com sucesso!' });
+        }
+      } catch (shareErr: any) {
+        if (shareErr?.name === 'AbortError') return; // user dismissed — treat as success
+        // share failed (desktop Chrome, etc.) — fall through to anchor download
+      }
+
+      if (!sharedViaApi) {
+        // Fallback: anchor-click download
+        const url = URL.createObjectURL(txtBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = fileName;
+        a.download = txtFileName;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -87,7 +133,6 @@ export default function Perfil() {
         toast({ title: 'Dados exportados', description: 'O arquivo foi baixado.' });
       }
     } catch (err: any) {
-      // navigator.share throws AbortError if user dismisses — treat as success
       if (err?.name === 'AbortError') return;
       toast({ title: 'Erro ao exportar', description: 'Não foi possível exportar seus dados. Tente novamente.', variant: 'destructive' });
     } finally {

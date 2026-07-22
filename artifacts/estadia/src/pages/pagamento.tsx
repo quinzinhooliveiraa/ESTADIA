@@ -36,13 +36,16 @@ export default function Pagamento() {
   const [timedOut, setTimedOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  // Fallback QR generated client-side from brCode text if brCodeBase64 image fails
+  const [pixQrFallback, setPixQrFallback] = useState<string | null>(null);
 
   const pollingRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const verifyRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null);
 
-  const checkout = checkoutStore.get();
-  const isLive   = checkout?.is_live === true;
+  const checkout    = checkoutStore.get();
+  const isLive      = checkout?.is_live === true;
+  const isSandbox   = checkout?.is_sandbox === true;
 
   // Determine display mode
   const hasPixQr      = Boolean(checkout?.pix_qr_code && checkout?.pix_copia_cola);
@@ -51,6 +54,21 @@ export default function Pagamento() {
   const planInfo = PLANO_LABELS[checkout?.plano ?? ''] ?? null;
 
   const { data: assinatura } = useGetAssinatura();
+
+  // ── Pre-generate fallback QR from pix_copia_cola text ─────────────────────
+  useEffect(() => {
+    const brCode = checkout?.pix_copia_cola;
+    if (!brCode) return;
+    let cancelled = false;
+    import('qrcode').then((QRCode) => {
+      const toDataURL = QRCode.toDataURL as (text: string, opts?: Record<string, unknown>) => Promise<string>;
+      return toDataURL(brCode, { width: 300, margin: 1 });
+    }).then((url) => {
+      if (!cancelled) setPixQrFallback(url);
+    }).catch(() => {/* ignore */});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   // ── Activate when subscription becomes active ──────────────────────────────
   useEffect(() => {
@@ -241,7 +259,7 @@ export default function Pagamento() {
 
         <div className="px-6 pb-8 flex-1 flex flex-col items-center">
 
-          {/* Dev mode banner */}
+          {/* Dev mode banner (no keys configured) */}
           {!isLive && (
             <div className="w-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-center mb-5">
               <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-0.5">
@@ -249,6 +267,18 @@ export default function Pagamento() {
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-300">
                 QR Code de teste. Use o botão "Confirmar" abaixo.
+              </p>
+            </div>
+          )}
+
+          {/* Sandbox banner (live key but sandbox/abc_dev_ prefix) */}
+          {isLive && isSandbox && (
+            <div className="w-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-center mb-5">
+              <p className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-0.5">
+                Modo de teste
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-300">
+                Pagamento simulado — nenhuma cobrança real será feita.
               </p>
             </div>
           )}
@@ -267,7 +297,7 @@ export default function Pagamento() {
                 Escaneie o QR Code ou copie o código para pagar no app do seu banco.
               </p>
 
-              {/* QR Code */}
+              {/* QR Code — prefers brCodeBase64 from API; falls back to client-generated QR */}
               <div className="bg-white p-4 rounded-2xl mb-6 w-56 h-56 flex items-center justify-center shadow-sm">
                 {checkout.pix_qr_code ? (
                   <img
@@ -279,9 +309,14 @@ export default function Pagamento() {
                     alt="QR Code PIX"
                     className="w-full h-full object-contain"
                     onError={(e) => {
-                      console.error('[QR] Failed to render brCodeBase64 as image', e);
+                      console.error('[QR] brCodeBase64 failed to render — using client-generated fallback', e);
+                      if (pixQrFallback) {
+                        (e.target as HTMLImageElement).src = pixQrFallback;
+                      }
                     }}
                   />
+                ) : pixQrFallback ? (
+                  <img src={pixQrFallback} alt="QR Code PIX" className="w-full h-full object-contain" />
                 ) : (
                   <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 )}

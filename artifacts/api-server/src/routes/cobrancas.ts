@@ -61,6 +61,12 @@ async function buildCobrancaResponse(cobranca: typeof cobrancasTable.$inferSelec
     process.env.APP_URL ??
     "http://localhost";
 
+  if (!process.env.APP_ORIGIN && !process.env.APP_URL) {
+    console.warn(
+      "[cobrancas] APP_ORIGIN not set — verification URLs will use http://localhost. Set APP_ORIGIN in production."
+    );
+  }
+
   return {
     id: cobranca.id,
     espera_id: cobranca.espera_id,
