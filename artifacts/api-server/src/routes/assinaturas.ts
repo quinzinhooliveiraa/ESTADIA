@@ -43,8 +43,19 @@ const CICLO_MS: Record<string, number> = {
 // ── In-process v2 product ID cache ────────────────────────────────────────────
 const productIdCache: Record<string, string> = {};
 
-function isLiveMode(): boolean {
+/** True when the v2 key is set (enables cartao / pix_automatico). */
+function isV2Available(): boolean {
   return !!process.env.ABACATEPAY_API_KEY;
+}
+
+/** True when the v1 key is set (enables pix_avulso). */
+function isV1Available(): boolean {
+  return !!process.env.ABACATEPAY_API_KEY_V1;
+}
+
+/** True when at least one live key is present. */
+function isLiveMode(): boolean {
+  return isV1Available() || isV2Available();
 }
 
 // ── AbacatePay v1 helper ───────────────────────────────────────────────────────
@@ -52,7 +63,7 @@ async function abacateFetchV1(
   path: string,
   options: RequestInit & { method: string }
 ): Promise<any> {
-  const apiKey = process.env.ABACATEPAY_API_KEY!;
+  const apiKey = process.env.ABACATEPAY_API_KEY_V1!;
   const res = await fetch(`${ABACATEPAY_V1}${path}`, {
     ...options,
     headers: {
@@ -205,9 +216,10 @@ async function activateAssinatura(
 // ── GET /assinatura/metodos ───────────────────────────────────────────────────
 router.get("/assinatura/metodos", requireAuth, async (_req: AuthRequest, res): Promise<void> => {
   res.json({
-    pix_avulso: true,
-    pix_automatico: process.env.ABACATEPAY_PIX_AUTOMATICO === "true",
-    cartao: process.env.ABACATEPAY_CARTAO === "true",
+    // pix_avulso requires the v1 key (or mock mode where both are absent)
+    pix_avulso: isV1Available() || !isLiveMode(),
+    pix_automatico: isV2Available() && process.env.ABACATEPAY_PIX_AUTOMATICO === "true",
+    cartao: isV2Available() && process.env.ABACATEPAY_CARTAO === "true",
   });
 });
 
@@ -270,6 +282,10 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
 
     // ── PIX avulso (v1) ───────────────────────────────────────────────────────
     if (metodo === "pix_avulso") {
+      if (!isV1Available()) {
+        res.status(400).json({ error: "PIX avulso indisponível: ABACATEPAY_API_KEY_V1 não configurada." });
+        return;
+      }
       try {
         const data = await abacateFetchV1("/pixQrCode/create", {
           method: "POST",
@@ -331,6 +347,10 @@ router.post("/assinatura/checkout", requireAuth, async (req: AuthRequest, res): 
 
     // ── Cartão / PIX Automático (v2 subscriptions) ────────────────────────────
     if (metodo === "cartao" || metodo === "pix_automatico") {
+      if (!isV2Available()) {
+        res.status(400).json({ error: "Método indisponível: ABACATEPAY_API_KEY não configurada." });
+        return;
+      }
       const methodsMap: Record<string, string[]> = {
         cartao: ["CREDIT_CARD"],
         pix_automatico: ["PIX"],
