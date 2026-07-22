@@ -1,0 +1,2 @@
+- [Payment system](payment-system.md) — PIX avulso live; cartão/PIX automático stubbed behind env flags; 2-step paywall; aviso_renovacao computed JIT.
+- [Token storage](token-store.md) — cookie-first (estadia_token), localStorage fallback for migration; no backend cookie parsing needed.

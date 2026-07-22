@@ -10,9 +10,12 @@ import {
   useCreateVeiculo,
   useCreateEspera,
   useGetEsperasResumo,
+  useGetAssinatura,
 } from '@workspace/api-client-react';
-import { Truck, MapPin, Loader2, Navigation, X, Check } from 'lucide-react';
+import { Truck, MapPin, Loader2, Navigation, X, Check, TriangleAlert, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const CAPACITY_CHIPS = [
   { label: 'VUC',        tons: 4  },
@@ -33,6 +36,8 @@ export default function Home() {
   const { data: uso } = useGetUsoMes();
   const { data: veiculos, isLoading: veiculosLoading } = useListVeiculos();
   const { data: resumo } = useGetEsperasResumo();
+  // Fetching assinatura triggers JIT auto-expire and provides the renewal warning
+  const { data: assinatura } = useGetAssinatura();
 
   const createEspera = useCreateEspera();
   const createVeiculo = useCreateVeiculo();
@@ -176,6 +181,10 @@ export default function Home() {
   const hasEsperaAtiva = resumo?.espera_ativa;
   const isBusy = loadingGps || createEspera.isPending || createVeiculo.isPending;
 
+  // Renewal / expiry banner state
+  const assinaturaVencida = assinatura?.status === 'expirado';
+  const avisoRenovacao = assinatura?.aviso_renovacao === true;
+
   return (
     <AppLayout>
       <div className="flex flex-col h-full p-4">
@@ -192,6 +201,39 @@ export default function Home() {
             )}
           </div>
         </div>
+
+        {/* ── Subscription expired / renewal warning banner ─────────── */}
+        {assinaturaVencida && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <TriangleAlert className="w-5 h-5 text-destructive shrink-0" />
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-destructive">Assinatura vencida</p>
+                <p className="text-xs text-muted-foreground truncate">Renove para continuar ilimitado.</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => setLocation('/paywall')} className="shrink-0">
+              Renovar PRO
+            </Button>
+          </div>
+        )}
+
+        {!assinaturaVencida && avisoRenovacao && assinatura?.expira_em && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-amber-700 dark:text-amber-400">Assinatura vence em breve</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  Expira em {format(new Date(assinatura.expira_em), "dd/MM", { locale: ptBR })} — renove para não perder o acesso.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setLocation('/paywall')} className="shrink-0 border-amber-500/50 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10">
+              Renovar
+            </Button>
+          </div>
+        )}
 
         {hasEsperaAtiva && (
           <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6 flex items-center justify-between">

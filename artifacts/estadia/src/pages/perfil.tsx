@@ -19,6 +19,7 @@ import {
   getListVeiculosQueryKey,
   getGetAssinaturaQueryKey,
 } from '@workspace/api-client-react';
+import { getToken } from '@/lib/token';
 import { useQueryClient } from '@tanstack/react-query';
 import { User, Truck, LogOut, Trash2, Download, AlertTriangle, Loader2, Pencil, Check, X } from 'lucide-react';
 import {
@@ -58,7 +59,7 @@ export default function Perfil() {
   const handleExportDados = async () => {
     setExportando(true);
     try {
-      const token = localStorage.getItem('estadia_token');
+      const token = getToken();
       const res = await fetch('/api/perfil/export', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

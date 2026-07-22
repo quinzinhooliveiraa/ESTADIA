@@ -660,7 +660,14 @@ export const GetAssinaturaResponse = zod.object({
   "status": zod.enum(['ativo', 'cancelado', 'expirado']),
   "expira_em": zod.coerce.date().nullish(),
   "metodo": zod.union([zod.literal('pix'),zod.literal('cartao'),zod.literal(null)]).nullish(),
+  "aviso_renovacao": zod.boolean().optional(),
   "created_at": zod.coerce.date()
+})
+
+export const GetMetodosAssinaturaResponse = zod.object({
+  "pix_avulso": zod.boolean(),
+  "pix_automatico": zod.boolean(),
+  "cartao": zod.boolean(),
 })
 
 

@@ -280,7 +280,18 @@ export interface Assinatura {
   expira_em?: string | null;
   /** @nullable */
   metodo?: AssinaturaMetodo;
+  /** True when the subscription expires within 3 days */
+  aviso_renovacao?: boolean;
   created_at: string;
+}
+
+export interface MetodosAssinatura {
+  /** PIX one-time charge (v1) — always available */
+  pix_avulso: boolean;
+  /** Recurring PIX via AbacatePay v2 — requires account feature flag */
+  pix_automatico: boolean;
+  /** Credit card via AbacatePay v2 — requires account feature flag */
+  cartao: boolean;
 }
 
 export type CheckoutInputPlano = typeof CheckoutInputPlano[keyof typeof CheckoutInputPlano];
