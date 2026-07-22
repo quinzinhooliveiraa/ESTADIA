@@ -38,6 +38,22 @@ function isLiveMode(): boolean {
   );
 }
 
+// How many days before expiry to start showing the renewal warning
+const AVISO_RENOVACAO_DIAS = 3;
+
+// ── GET /assinatura/metodos ───────────────────────────────────────────────────
+// Detects which payment methods are available for this account.
+// PIX avulso (v1) is always on. PIX Automático and Cartão (v2) require
+// account-level feature flags — set ABACATEPAY_PIX_AUTOMATICO=true or
+// ABACATEPAY_CARTAO=true once the provider enables them on the account.
+router.get("/assinatura/metodos", requireAuth, async (_req: AuthRequest, res): Promise<void> => {
+  res.json({
+    pix_avulso: true,
+    pix_automatico: process.env.ABACATEPAY_PIX_AUTOMATICO === "true",
+    cartao: process.env.ABACATEPAY_CARTAO === "true",
+  });
+});
+
 // ── GET /assinatura ───────────────────────────────────────────────────────────
 router.get("/assinatura", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const motoristaId = req.motoristaId!;
@@ -49,21 +65,36 @@ router.get("/assinatura", requireAuth, async (req: AuthRequest, res): Promise<vo
     .limit(1);
 
   if (assinaturas.length === 0) {
-    res.json({ id: "gratis", motorista_id: motoristaId, plano: "gratis", status: "ativo", expira_em: null, metodo: null, created_at: new Date().toISOString() });
+    res.json({
+      id: "gratis",
+      motorista_id: motoristaId,
+      plano: "gratis",
+      status: "ativo",
+      expira_em: null,
+      metodo: null,
+      aviso_renovacao: false,
+      created_at: new Date().toISOString(),
+    });
     return;
   }
 
   const assinatura = assinaturas[0];
 
-  // Auto-expire check
+  // Auto-expire: downgrade to grátis when the subscription period is over
   if (assinatura.status === "ativo" && assinatura.expira_em && assinatura.expira_em < new Date()) {
     await db.update(assinaturasTable).set({ status: "expirado" }).where(eq(assinaturasTable.id, assinatura.id));
     await db.update(motoristasTable).set({ plano: "gratis" }).where(eq(motoristasTable.id, motoristaId));
-    res.json({ ...assinatura, status: "expirado" });
+    res.json({ ...assinatura, status: "expirado", aviso_renovacao: false });
     return;
   }
 
-  res.json(assinatura);
+  // Renewal warning: flag when the subscription expires within AVISO_RENOVACAO_DIAS days
+  const aviso_renovacao =
+    assinatura.status === "ativo" &&
+    !!assinatura.expira_em &&
+    assinatura.expira_em.getTime() - Date.now() < AVISO_RENOVACAO_DIAS * 24 * 60 * 60 * 1000;
+
+  res.json({ ...assinatura, aviso_renovacao });
 });
 
 // ── POST /assinatura/checkout ─────────────────────────────────────────────────

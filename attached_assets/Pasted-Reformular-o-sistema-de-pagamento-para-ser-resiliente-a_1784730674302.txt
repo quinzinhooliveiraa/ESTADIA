@@ -1,0 +1,38 @@
+Reformular o sistema de pagamento para ser resiliente a múltiplos
+métodos e não depender de PIX Automático. Implementar:
+
+1. ESCOLHA DE MÉTODO NO CHECKOUT: na tela de assinar PRO, após escolher
+   o plano, o usuário escolhe COMO pagar:
+   - PIX (à vista): gera cobrança avulsa v1 via POST /v1/pixQrCode/create
+     (body {amount, description, externalId} — formato JÁ VALIDADO nesta
+     conta). Exibe QR inline (brCodeBase64) + copia-e-cola (brCode).
+     Ao confirmar pagamento (via webhook ou polling em /v1/pixQrCode/check),
+     ativa PRO por 30 dias (mensal) ou 365 dias (anual).
+   - Cartão de crédito: tentar assinatura recorrente v2
+     (/v2/subscriptions/create com methods:["CARD"]). Se a conta não
+     suportar ainda, capturar o erro e ocultar/desabilitar a opção com
+     aviso "em breve".
+   - PIX Automático (recorrente): tentar v2 com methods:["PIX"]. Se
+     retornar "PIX Automático is not available", ocultar/desabilitar a
+     opção com aviso "em breve" — NÃO quebrar o checkout.
+
+2. DETECÇÃO DE MÉTODOS DISPONÍVEIS: criar um endpoint GET /assinatura/metodos
+   que retorna quais métodos a conta suporta hoje (testando ou por
+   config), pro frontend só mostrar o que funciona. Assim, quando o PIX
+   Automático/cartão forem habilitados, aparecem sozinhos sem mudar código.
+
+3. CONTROLE DE ACESSO (já parcialmente existe): garantir que TODA
+   verificação de PRO valide status='ativo' AND expira_em > agora.
+   Vencido → rebaixar para grátis automaticamente (1 cobrança/mês) e, na
+   home e no paywall, mostrar "Sua assinatura venceu — renove para
+   continuar ilimitado" com botão de pagar.
+
+4. LEMBRETE DE RENOVAÇÃO (PIX avulso não é automático): job diário que,
+   3 dias antes de expira_em, marca a assinatura para exibir aviso de
+   renovação no app com o botão de pagar de novo. (Notificação push fica
+   para depois; por ora, aviso in-app.)
+
+5. Manter o código de assinatura v2 intacto para reativar recorrência
+   automática quando a conta de produção habilitar PIX Automático/cartão.
+
+Testar o fluxo PIX avulso ponta a ponta (é o que funciona hoje).
