@@ -183,21 +183,98 @@ export default function Cobranca() {
         const thumbSize = 36;
         const thumbGap = 4;
 
-        // Helper: resolve natural dimensions to preserve aspect ratio (letterbox)
-        const getImgDims = (src: string): Promise<{ w: number; h: number }> =>
-          new Promise((resolve) => {
+        /**
+         * Read EXIF orientation tag (1–8) from a JPEG data URL.
+         * Returns 1 (no-op) for non-JPEG or if tag is absent/unreadable.
+         */
+        const readExifOrientation = (src: string): number => {
+          try {
+            if (!src.includes('image/jpeg') && !src.includes('image/jpg')) return 1;
+            const b64 = src.split(',')[1];
+            if (!b64) return 1;
+            const bin = atob(b64);
+            const buf = new Uint8Array(bin.length);
+            for (let k = 0; k < bin.length; k++) buf[k] = bin.charCodeAt(k);
+            if (buf[0] !== 0xFF || buf[1] !== 0xD8) return 1;
+            let off = 2;
+            while (off < buf.length - 4) {
+              if (buf[off] !== 0xFF) break;
+              const marker = buf[off + 1];
+              const segLen = (buf[off + 2] << 8) | buf[off + 3];
+              if (marker === 0xE1 && off + 10 < buf.length) {
+                // APP1 — look for "Exif\0\0"
+                if (
+                  buf[off + 4] === 0x45 && buf[off + 5] === 0x78 &&
+                  buf[off + 6] === 0x69 && buf[off + 7] === 0x66 &&
+                  buf[off + 8] === 0x00 && buf[off + 9] === 0x00
+                ) {
+                  const t = off + 10; // TIFF block start
+                  const le = buf[t] === 0x49; // 'II' = little-endian
+                  const u16 = (p: number) => le
+                    ? (buf[t + p] | (buf[t + p + 1] << 8))
+                    : ((buf[t + p] << 8) | buf[t + p + 1]);
+                  const u32 = (p: number) => le
+                    ? ((buf[t + p] | (buf[t + p + 1] << 8) | (buf[t + p + 2] << 16) | (buf[t + p + 3] << 24)) >>> 0)
+                    : (((buf[t + p] << 24) | (buf[t + p + 1] << 16) | (buf[t + p + 2] << 8) | buf[t + p + 3]) >>> 0);
+                  if (u16(2) !== 42) return 1; // TIFF magic
+                  const ifd = u32(4);
+                  const entries = u16(ifd);
+                  for (let e = 0; e < entries; e++) {
+                    const ep = ifd + 2 + e * 12;
+                    if (ep + 12 > buf.length - t) break;
+                    if (u16(ep) === 0x0112) return u16(ep + 8); // Orientation tag
+                  }
+                }
+              }
+              if (marker === 0xDA) break; // SOS — no more header segments
+              off += 2 + segLen;
+            }
+          } catch { /* fall through */ }
+          return 1;
+        };
+
+        /**
+         * Draw img onto a canvas respecting its EXIF orientation, then return
+         * a JPEG data URL with pixels already in the correct visual orientation.
+         * jsPDF ignores EXIF metadata, so we bake the rotation into the pixels.
+         */
+        const normalizeOrientation = (src: string): Promise<{ dataUrl: string; w: number; h: number }> =>
+          new Promise((resolve, reject) => {
             const img = new Image();
-            img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-            img.onerror = () => resolve({ w: 1, h: 1 });
+            img.onload = () => {
+              const o = readExifOrientation(src);
+              const nw = img.naturalWidth;
+              const nh = img.naturalHeight;
+              // Orientations 5-8 require swapping canvas dimensions (90°/270° rotations)
+              const swap = o >= 5;
+              const cw = swap ? nh : nw;
+              const ch = swap ? nw : nh;
+              const canvas = document.createElement('canvas');
+              canvas.width = cw;
+              canvas.height = ch;
+              const ctx = canvas.getContext('2d')!;
+              // Apply the inverse transform so the rendered pixels match visual orientation
+              // Reference: https://www.daveperrett.com/articles/2012/07/28/exif-orientation-handling-is-a-ghetto/
+              switch (o) {
+                case 2: ctx.transform(-1,  0,  0,  1, nw,  0); break;
+                case 3: ctx.transform(-1,  0,  0, -1, nw, nh); break;
+                case 4: ctx.transform( 1,  0,  0, -1,  0, nh); break;
+                case 5: ctx.transform( 0,  1,  1,  0,  0,  0); break;
+                case 6: ctx.transform( 0,  1, -1,  0, nh,  0); break;
+                case 7: ctx.transform( 0, -1, -1,  0, nh, nw); break;
+                case 8: ctx.transform( 0, -1,  1,  0,  0, nw); break;
+                // case 1: identity — no transform needed
+              }
+              ctx.drawImage(img, 0, 0);
+              resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.92), w: cw, h: ch });
+            };
+            img.onerror = reject;
             img.src = src;
           });
 
         for (let i = 0; i < Math.min(cobranca.espera.fotos.length, 4); i++) {
           try {
-            const src = cobranca.espera.fotos[i];
-            const mimeMatch = src.match(/^data:(image\/\w+);/);
-            const fmt = mimeMatch?.[1] === 'image/png' ? 'PNG' : 'JPEG';
-            const { w, h } = await getImgDims(src);
+            const { dataUrl, w, h } = await normalizeOrientation(cobranca.espera.fotos[i]);
             const aspect = w / h;
 
             // Fit within thumbSize × thumbSize without distortion (letterbox)
@@ -214,7 +291,7 @@ export default function Cobranca() {
             }
 
             doc.addImage(
-              src, fmt,
+              dataUrl, 'JPEG',
               margin + i * (thumbSize + thumbGap) + offX,
               y + offY,
               imgW, imgH
