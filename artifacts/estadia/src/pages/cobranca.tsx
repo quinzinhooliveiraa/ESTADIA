@@ -184,18 +184,31 @@ export default function Cobranca() {
         const thumbGap = 4;
 
         /**
-         * Read EXIF orientation tag (1–8) from a JPEG data URL.
-         * Returns 1 (no-op) for non-JPEG or if tag is absent/unreadable.
+         * Read EXIF orientation tag (1–8) from a JPEG.
+         * Works with both data URLs (data:image/jpeg;base64,...) and HTTP URLs.
+         * Fetches only the first 64 KB for HTTP URLs — EXIF is always in the header.
+         * Returns 1 (no-op) for non-JPEG, absent tag, or any error.
          */
-        const readExifOrientation = (src: string): number => {
+        const readExifOrientation = async (src: string): Promise<number> => {
           try {
-            if (!src.includes('image/jpeg') && !src.includes('image/jpg')) return 1;
-            const b64 = src.split(',')[1];
-            if (!b64) return 1;
-            const bin = atob(b64);
-            const buf = new Uint8Array(bin.length);
-            for (let k = 0; k < bin.length; k++) buf[k] = bin.charCodeAt(k);
-            if (buf[0] !== 0xFF || buf[1] !== 0xD8) return 1;
+            let buf: Uint8Array;
+            if (src.startsWith('data:')) {
+              // data URL — decode base64 directly
+              const b64 = src.split(',')[1];
+              if (!b64) return 1;
+              const bin = atob(b64);
+              buf = new Uint8Array(bin.length);
+              for (let k = 0; k < bin.length; k++) buf[k] = bin.charCodeAt(k);
+            } else {
+              // HTTP URL — fetch just the first 64 KB (EXIF is always near the start)
+              const resp = await fetch(src, {
+                headers: { Range: 'bytes=0-65535' },
+                credentials: 'include',
+              });
+              buf = new Uint8Array(await resp.arrayBuffer());
+            }
+
+            if (buf[0] !== 0xFF || buf[1] !== 0xD8) return 1; // not a JPEG
             let off = 2;
             while (off < buf.length - 4) {
               if (buf[off] !== 0xFF) break;
@@ -216,7 +229,7 @@ export default function Cobranca() {
                   const u32 = (p: number) => le
                     ? ((buf[t + p] | (buf[t + p + 1] << 8) | (buf[t + p + 2] << 16) | (buf[t + p + 3] << 24)) >>> 0)
                     : (((buf[t + p] << 24) | (buf[t + p + 1] << 16) | (buf[t + p + 2] << 8) | buf[t + p + 3]) >>> 0);
-                  if (u16(2) !== 42) return 1; // TIFF magic
+                  if (u16(2) !== 42) return 1; // TIFF magic check
                   const ifd = u32(4);
                   const entries = u16(ifd);
                   for (let e = 0; e < entries; e++) {
@@ -238,14 +251,17 @@ export default function Cobranca() {
          * a JPEG data URL with pixels already in the correct visual orientation.
          * jsPDF ignores EXIF metadata, so we bake the rotation into the pixels.
          */
-        const normalizeOrientation = (src: string): Promise<{ dataUrl: string; w: number; h: number }> =>
-          new Promise((resolve, reject) => {
+        const normalizeOrientation = async (src: string): Promise<{ dataUrl: string; w: number; h: number }> => {
+          // Read EXIF orientation first (async, supports HTTP URLs)
+          const o = await readExifOrientation(src);
+
+          return new Promise((resolve, reject) => {
             const img = new Image();
+            img.crossOrigin = 'anonymous';
             img.onload = () => {
-              const o = readExifOrientation(src);
               const nw = img.naturalWidth;
               const nh = img.naturalHeight;
-              // Orientations 5-8 require swapping canvas dimensions (90°/270° rotations)
+              // Orientations 5–8 require swapping canvas dimensions (90°/270° rotations)
               const swap = o >= 5;
               const cw = swap ? nh : nw;
               const ch = swap ? nw : nh;
@@ -253,7 +269,7 @@ export default function Cobranca() {
               canvas.width = cw;
               canvas.height = ch;
               const ctx = canvas.getContext('2d')!;
-              // Apply the inverse transform so the rendered pixels match visual orientation
+              // Apply the inverse transform so rendered pixels match visual orientation
               // Reference: https://www.daveperrett.com/articles/2012/07/28/exif-orientation-handling-is-a-ghetto/
               switch (o) {
                 case 2: ctx.transform(-1,  0,  0,  1, nw,  0); break;
@@ -271,6 +287,7 @@ export default function Cobranca() {
             img.onerror = reject;
             img.src = src;
           });
+        };
 
         for (let i = 0; i < Math.min(cobranca.espera.fotos.length, 4); i++) {
           try {
