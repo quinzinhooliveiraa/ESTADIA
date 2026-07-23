@@ -171,7 +171,7 @@ export default function Espera() {
 
               {isOverdue ? (
                 <div className="text-destructive text-sm font-bold animate-pulse">
-                  PRAZO ESTOURADO — estadia correndo
+                  PRAZO ESTOURADO — diária correndo
                 </div>
               ) : (
                 (() => {
@@ -190,7 +190,7 @@ export default function Espera() {
 
             {isOverdue && (
               <div className="border-t border-border pt-4 mt-2 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-2">
-                <span className="text-xs text-muted-foreground font-bold uppercase mb-1">Valor acumulado</span>
+                <span className="text-xs text-muted-foreground font-bold uppercase mb-1">Valor que te devem</span>
                 <span className="text-3xl font-display text-success">
                   {currentValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
@@ -202,12 +202,12 @@ export default function Espera() {
           <div className="flex items-start gap-3 bg-primary/5 border border-primary/15 rounded-xl p-3">
             <FileText className="w-4 h-4 text-primary mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground leading-relaxed">
-              <span className="font-semibold text-foreground">📄 Peça o comprovante na portaria</span> — o embarcador é obrigado por lei a fornecer. Recusa gera multa de até 5% do valor da carga (Lei 13.103/2015).
+              <span className="font-semibold text-foreground">📄 Peça o protocolo de entrada na portaria</span> — o embarcador é obrigado a fornecer. Guarda junto com o registro do app: duas provas valem mais que uma.
             </p>
           </div>
 
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider px-1">Comprovantes</h3>
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider px-1">Fotos de prova</h3>
 
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
               {espera.fotos?.map((fotoUrl, i) => (
@@ -247,7 +247,7 @@ export default function Espera() {
             disabled={!isOverdue || isEncerrada || gerar.isPending}
             onClick={handleGerar}
           >
-            {gerar.isPending ? 'GERANDO...' : 'GERAR COBRANÇA'}
+            {gerar.isPending ? 'GERANDO...' : 'GERAR DOCUMENTO'}
             <Receipt className="ml-2 w-5 h-5" />
           </Button>
 
@@ -259,7 +259,7 @@ export default function Espera() {
               disabled={encerrar.isPending}
             >
               <StopCircle className="w-4 h-4 mr-2" />
-              Encerrar sem estadia
+              Encerrar sem cobrança
             </Button>
           )}
         </div>

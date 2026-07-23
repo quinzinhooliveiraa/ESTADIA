@@ -76,7 +76,7 @@ export default function Paywall() {
                 </h1>
               )}
               <p className="text-muted-foreground mt-3 font-medium text-lg">
-                Assine o PRO e recupere seu dinheiro.
+                Assine o PRO e gere documentos ilimitados.
               </p>
             </div>
 
@@ -138,11 +138,11 @@ export default function Paywall() {
               </h3>
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
-                <p className="text-sm font-medium">Cobranças ilimitadas todo mês</p>
+                <p className="text-sm font-medium">Documentos ilimitados todo mês</p>
               </div>
               <div className="flex items-start gap-3">
                 <FileText className="w-5 h-5 text-success shrink-0" />
-                <p className="text-sm font-medium">PDF com QR Code de verificação</p>
+                <p className="text-sm font-medium">PDF com horário, valor e lei — prova completa</p>
               </div>
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-success shrink-0" />

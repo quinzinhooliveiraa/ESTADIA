@@ -11,21 +11,21 @@ import { useBeforeInstallPrompt } from '@/hooks/useBeforeInstallPrompt';
 const INFO_SLIDES = [
   {
     icon: <Truck className="w-16 h-16 text-primary mb-6" />,
-    title: "Ficou parado mais de 5 horas?",
-    subtitle: "Eles te devem.",
-    description: "Passou de 5 horas esperando? O embarcador tem que pagar pela hora parada. É lei (13.103/2015).",
+    title: "Seu caminhão virou depósito deles?",
+    subtitle: "Passou de 5h esperando, eles te devem.",
+    description: "Você já sabe que a lei existe. O problema é provar. É isso que o app faz por você.",
   },
   {
     icon: <MapPin className="w-16 h-16 text-primary mb-6" />,
     title: "O app é sua testemunha",
-    subtitle: "GPS + registro imutável",
-    description: "Chegou pra carregar ou descarregar? Aperte um botão. O app registra a hora e o local exato com GPS. Com prova de GPS, fica muito difícil negarem.",
+    subtitle: "Registro que não dá pra apagar",
+    description: "Aperta CHEGUEI. O app grava hora e local por GPS — registro que não dá pra apagar nem discutir depois.",
   },
   {
     icon: <CheckCircle2 className="w-16 h-16 text-primary mb-6" />,
-    title: "Cobrança pronta no WhatsApp",
-    subtitle: "Fácil e rápido",
-    description: "Geramos um PDF oficial com a cobrança com base na Lei 13.103, com a tarifa oficial por tonelada/hora (reajustada pelo INPC). É só mandar pro embarcador.",
+    title: "Documento pronto pra mandar",
+    subtitle: "É só jogar no WhatsApp do embarcador.",
+    description: "Sai um documento com o valor calculado, o horário provado e a lei citada. É só mandar no WhatsApp do cara.",
   },
 ];
 

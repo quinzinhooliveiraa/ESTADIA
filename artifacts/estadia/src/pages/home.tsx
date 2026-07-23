@@ -242,14 +242,14 @@ export default function Home() {
                 <Truck className="text-primary w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-sm">Espera em andamento</h3>
+                <h3 className="font-bold text-sm">Registro ativo</h3>
                 <p className="text-xs text-muted-foreground">
                   Desde {new Date(hasEsperaAtiva.chegada_ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
             <Button size="sm" onClick={() => setLocation(`/espera/${hasEsperaAtiva.id}`)}>
-              Ver tempo
+              Ver agora
             </Button>
           </div>
         )}
@@ -315,9 +315,9 @@ export default function Home() {
           {/* D3: GPS denied instructions */}
           {gpsDenied && (
             <div className="mb-4 bg-destructive/10 border border-destructive/30 rounded-xl p-4">
-              <p className="text-sm font-semibold text-destructive mb-1">Localização bloqueada</p>
+              <p className="text-sm font-semibold text-destructive mb-1">GPS bloqueado</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Para reativar: toque no ícone de cadeado ou configurações na barra do navegador e permita o acesso à localização para este site.
+                Toque no cadeado na barra do navegador e permita a localização. Sem GPS não tem prova.
               </p>
               <Button
                 size="sm"
@@ -372,7 +372,7 @@ export default function Home() {
 
             <h2 className="text-xl font-display text-foreground mb-1">Qual a placa do veículo?</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-              A placa é obrigatória para o documento de cobrança ter validade legal.
+              A placa vai no documento. Sem ela, fica difícil de cobrar.
             </p>
 
             <Input
@@ -420,13 +420,13 @@ export default function Home() {
               </button>
             </div>
 
-            <h2 className="text-xl font-display text-foreground mb-2">Por que precisamos da sua localização?</h2>
+            <h2 className="text-xl font-display text-foreground mb-2">Por que o app precisa da localização?</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-              Precisamos da sua localização <strong className="text-foreground">só para provar onde e quando você chegou</strong>.
-              Sem isso, não tem como gerar a prova legal — a lei exige o registro georreferenciado de chegada.
+              O GPS grava <strong className="text-foreground">onde e quando você chegou</strong>.
+              Sem isso, não tem como provar a estadia — e sem prova, não tem cobrança.
             </p>
             <p className="text-xs text-muted-foreground mb-6 bg-secondary rounded-lg p-3 leading-relaxed">
-              📍 A localização é capturada <strong>apenas no momento do CHEGUEI</strong> e nunca em segundo plano.
+              📍 Capturado <strong>só no momento do CHEGUEI</strong>. Nunca em segundo plano.
             </p>
 
             <Button

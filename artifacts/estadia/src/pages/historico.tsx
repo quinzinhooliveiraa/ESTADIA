@@ -62,7 +62,7 @@ export default function Historico() {
           </div>
         )}
 
-        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Registros de Espera</h2>
+        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Suas estadias (diárias)</h2>
 
         {loadingList ? (
           <div className="flex-1 flex justify-center items-center">
@@ -71,7 +71,7 @@ export default function Historico() {
         ) : esperasList?.items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center p-6">
             <Clock className="w-12 h-12 mb-4 opacity-20" />
-            <p>Nenhuma espera registrada ainda.</p>
+            <p>Nenhum registro ainda. Aperta CHEGUEI quando chegar num pátio.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3 pb-6">

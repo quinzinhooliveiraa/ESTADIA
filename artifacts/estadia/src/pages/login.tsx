@@ -121,7 +121,7 @@ export default function Login() {
             ESTADIA
           </h1>
           <p className="text-muted-foreground font-medium">
-            Seu tempo vale dinheiro.
+            Prove a estadia. Receba o que é seu.
           </p>
         </div>
 
