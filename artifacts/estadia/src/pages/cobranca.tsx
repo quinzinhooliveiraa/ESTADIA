@@ -192,9 +192,19 @@ export default function Cobranca() {
          * jsPDF ignores EXIF, so we must deliver pre-rotated pixels.
          */
         const normalizeOrientation = async (src: string): Promise<{ dataUrl: string; w: number; h: number }> => {
-          // 1. Get a Blob from either a data URL or an HTTP URL
-          const blob = await fetch(src, src.startsWith('data:') ? {} : { credentials: 'include' })
-            .then(r => r.blob());
+          // 1. Get a Blob — data URLs must be decoded manually; fetch(dataURL) is
+          //    unreliable in some browser contexts and can throw silently.
+          let blob: Blob;
+          if (src.startsWith('data:')) {
+            const [header, b64] = src.split(',');
+            const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            blob = new Blob([arr], { type: mime });
+          } else {
+            blob = await fetch(src, { credentials: 'include' }).then(r => r.blob());
+          }
 
           // 2. Decode with EXIF orientation applied — browser handles all 8 cases
           const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
