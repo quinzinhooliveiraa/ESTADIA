@@ -190,7 +190,7 @@ export default function Home() {
     <AppLayout>
       <div className="flex flex-col h-full p-4">
         <div className="flex justify-between items-center mb-6">
-          <img src="/logo-dark.svg" alt="ESTADIA" className="h-9" />
+          <img src="/logo-dark.png" alt="ESTADIA" className="h-9" />
           <div className={`px-3 py-1.5 rounded-full text-xs font-bold ${isPro ? 'bg-pro/20 text-pro' : 'bg-secondary text-muted-foreground'}`}>
             {isPro ? (
               <span className="flex items-center gap-1">⚡ PRO ATIVO</span>

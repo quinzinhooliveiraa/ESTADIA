@@ -93,7 +93,7 @@ export default function Verificar() {
         </div>
         
         <div className="mt-8 opacity-60">
-          <img src="/logo-light.svg" alt="ESTADIA" className="h-8" />
+          <img src="/logo-light.png" alt="ESTADIA" className="h-8" />
         </div>
       </div>
     </div>
