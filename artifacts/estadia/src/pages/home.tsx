@@ -13,6 +13,7 @@ import {
   useGetAssinatura,
 } from '@workspace/api-client-react';
 import { Truck, MapPin, Loader2, Navigation, X, Check, TriangleAlert, Clock } from 'lucide-react';
+import { PwaInstallBanner } from '@/components/PwaInstallReminder';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -201,6 +202,9 @@ export default function Home() {
             )}
           </div>
         </div>
+
+        {/* ── PWA install reminder banner ───────────────────────────── */}
+        <PwaInstallBanner />
 
         {/* ── Subscription expired / renewal warning banner ─────────── */}
         {assinaturaVencida && (

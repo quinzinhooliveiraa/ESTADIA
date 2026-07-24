@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useGetCobranca, useGetTarifaVigente, getGetCobrancaQueryKey } from '@workspace/api-client-react';
 import { ArrowLeft, Send, Download, Loader2 } from 'lucide-react';
+import { PwaInstallCard } from '@/components/PwaInstallReminder';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -410,6 +411,9 @@ export default function Cobranca() {
               </div>
             </div>
           </div>
+
+          {/* PWA install reminder — shown after the document, only in browser mode */}
+          <PwaInstallCard />
         </div>
 
         <div className="p-4 bg-card border-t border-border flex gap-3 print:hidden shrink-0">
