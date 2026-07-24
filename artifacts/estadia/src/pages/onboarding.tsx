@@ -63,17 +63,87 @@ function Step({
 
 // ── Install slide ────────────────────────────────────────────────────────────
 
+// ── Browser/platform detection ───────────────────────────────────────────────
+
+function detectBrowser() {
+  const ua = navigator.userAgent;
+
+  // iOS devices (iPhone, iPad, iPod — including iPad masquerading as MacIntel)
+  const isIos =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  if (isIos) {
+    // On iOS, only Safari supports PWA install; Chrome/Firefox on iOS use WebKit
+    // but lack the share-to-homescreen shortcut in the same spot.
+    const isIosSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+    return { isIos: true, isIosSafari, browser: isIosSafari ? 'ios-safari' : 'ios-other' } as const;
+  }
+
+  // Android browsers
+  if (/SamsungBrowser/.test(ua)) return { isIos: false, browser: 'samsung' } as const;
+  if (/Firefox/.test(ua))        return { isIos: false, browser: 'firefox' } as const;
+  if (/Edg\//.test(ua))          return { isIos: false, browser: 'edge'    } as const;
+  // Chrome (and Chromium-based, including WebView)
+  return { isIos: false, browser: 'chrome' } as const;
+}
+
+// ── Manual install steps per browser ────────────────────────────────────────
+
+type ManualSteps = { icon: string; label: string; sub?: string }[];
+
+function manualSteps(browser: ReturnType<typeof detectBrowser>['browser']): ManualSteps {
+  switch (browser) {
+    case 'ios-safari':
+      return [
+        { icon: '⬆️', label: 'Toca em Compartilhar',          sub: 'botão na barra inferior do Safari' },
+        { icon: '🏠', label: '"Adicionar à Tela de Início"',   sub: 'rola a lista pra encontrar' },
+        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+      ];
+    case 'ios-other':
+      return [
+        { icon: '🌐', label: 'Abre no Safari',                 sub: 'Chrome/Firefox no iPhone não instala' },
+        { icon: '⬆️', label: 'Toca em Compartilhar',          sub: 'botão na barra inferior' },
+        { icon: '🏠', label: '"Adicionar à Tela de Início"',   sub: 'rola a lista pra encontrar' },
+      ];
+    case 'samsung':
+      return [
+        { icon: '☰',  label: 'Toca nas três linhas',           sub: 'canto inferior direito do Samsung Internet' },
+        { icon: '➕', label: '"Adicionar página a…"',          sub: 'depois "Tela inicial"' },
+        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+      ];
+    case 'firefox':
+      return [
+        { icon: '⋮',  label: 'Toca nos três pontinhos',        sub: 'canto direito da barra do Firefox' },
+        { icon: '📲', label: '"Instalar"',                     sub: 'ou "Adicionar à tela inicial"' },
+        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+      ];
+    case 'edge':
+      return [
+        { icon: '⋯',  label: 'Toca nos três pontinhos',        sub: 'barra inferior do Edge' },
+        { icon: '📲', label: '"Adicionar à tela inicial"',     sub: 'ou "Instalar aplicativo"' },
+        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+      ];
+    default: // chrome
+      return [
+        { icon: '⋮',  label: 'Toca nos três pontinhos',        sub: 'canto superior direito do Chrome' },
+        { icon: '📲', label: '"Instalar aplicativo"',          sub: 'ou "Adicionar à tela inicial"' },
+        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+      ];
+  }
+}
+
+// ── Install slide ────────────────────────────────────────────────────────────
+
 function InstallSlide({ onFinish }: { onFinish: () => void }) {
   const deferredPrompt = useBeforeInstallPrompt();
   const [countdown, setCountdown] = useState(SKIP_COUNTDOWN);
   const [installing, setInstalling] = useState(false);
 
-  // Detect platform
-  const isIos =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const hasOneTabInstall = !isIos && !!deferredPrompt;
-  const isAndroidManual = !isIos && !deferredPrompt;
+  const detected = detectBrowser();
+  // One-tap install only works on non-iOS browsers that fired beforeinstallprompt
+  const hasOneTabInstall = !detected.isIos && !!deferredPrompt;
+  const steps = manualSteps(detected.browser);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -115,9 +185,8 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
 
         {/* Step-by-step card */}
         <div className="flex flex-col gap-5 bg-card border border-card-border rounded-2xl px-5 py-6">
-
-          {hasOneTabInstall && (
-            /* Android with prompt — just point to the button */
+          {hasOneTabInstall ? (
+            /* One-tap install available — point to the green button below */
             <div className="flex flex-col items-center gap-3 py-2 text-center">
               <span className="text-5xl select-none">👇</span>
               <p className="font-bold text-lg">Aperta o botão verde aqui embaixo</p>
@@ -125,57 +194,15 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
                 O celular vai confirmar — só aceita e pronto.
               </p>
             </div>
-          )}
-
-          {isAndroidManual && (
-            /* Android Chrome — manual install */
+          ) : (
+            /* Manual install — steps specific to the detected browser */
             <>
-              <Step
-                num={1}
-                icon="⋮"
-                label="Toca nos três pontinhos"
-                sub="canto superior direito do Chrome"
-              />
-              <div className="border-t border-border ml-14" />
-              <Step
-                num={2}
-                icon="📲"
-                label='"Instalar aplicativo"'
-                sub='ou "Adicionar à tela inicial"'
-              />
-              <div className="border-t border-border ml-14" />
-              <Step
-                num={3}
-                icon="✅"
-                label="Pronto!"
-                sub="o ESTADIA aparece na tela inicial"
-              />
-            </>
-          )}
-
-          {isIos && (
-            /* iOS Safari */
-            <>
-              <Step
-                num={1}
-                icon="⬆️"
-                label="Toca em Compartilhar"
-                sub="barra inferior do Safari"
-              />
-              <div className="border-t border-border ml-14" />
-              <Step
-                num={2}
-                icon="🏠"
-                label='"Adicionar à Tela de Início"'
-                sub="rola a lista pra encontrar"
-              />
-              <div className="border-t border-border ml-14" />
-              <Step
-                num={3}
-                icon="✅"
-                label="Pronto!"
-                sub="o ESTADIA aparece na tela inicial"
-              />
+              {steps.map((s, i) => (
+                <React.Fragment key={i}>
+                  <Step num={i + 1} icon={s.icon} label={s.label} sub={s.sub} />
+                  {i < steps.length - 1 && <div className="border-t border-border ml-14" />}
+                </React.Fragment>
+              ))}
             </>
           )}
         </div>
