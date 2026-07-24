@@ -117,9 +117,7 @@ export default function Login() {
     <AppLayout showNav={false}>
       <div className="flex flex-col h-[100dvh] p-6 pt-12">
         <div className="mb-8">
-          <h1 className="text-4xl font-display uppercase tracking-tighter mb-2 text-primary">
-            ESTADIA
-          </h1>
+          <img src="/logo-dark.svg" alt="ESTADIA" className="h-12 mb-2" />
           <p className="text-muted-foreground font-medium">
             Prove a estadia. Receba o que é seu.
           </p>

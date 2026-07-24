@@ -107,10 +107,35 @@ export default function Cobranca() {
       let y = 18;
 
       // ── Header ──────────────────────────────────────────────────────────────
+      // Load light logo (PNG pre-rendered from SVG, works on white PDF paper)
+      try {
+        const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = '/logo-light.png';
+        });
+        const logoCanvas = document.createElement('canvas');
+        logoCanvas.width = logoImg.naturalWidth;
+        logoCanvas.height = logoImg.naturalHeight;
+        logoCanvas.getContext('2d')!.drawImage(logoImg, 0, 0);
+        const logoDataUrl = logoCanvas.toDataURL('image/png');
+        // Target: ~50mm wide, maintain aspect ratio (496×120 px → ~4.13:1)
+        const logoW = 50;
+        const logoH = logoW / (logoImg.naturalWidth / logoImg.naturalHeight);
+        doc.addImage(logoDataUrl, 'PNG', margin, y, logoW, logoH);
+        y += logoH + 3;
+      } catch {
+        // Fallback to text if logo fails to load
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text('ESTADIA', pageW / 2, y, { align: 'center' });
+        y += 7;
+      }
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.text('NOTIFICAÇÃO DE COBRANÇA — ESTADIA', pageW / 2, y, { align: 'center' });
-      y += 7;
+      doc.setFontSize(13);
+      doc.text('NOTIFICAÇÃO DE COBRANÇA', pageW / 2, y, { align: 'center' });
+      y += 6;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.text('Lei 13.103/2015, art. 11, §5º da Lei 11.442/07', pageW / 2, y, { align: 'center' });

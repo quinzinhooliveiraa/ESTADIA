@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 248 60" fill="none">
+  <!-- Icon: stopwatch in rounded square (60×60) — same dark icon works on white too -->
+  <rect x="1" y="1" width="58" height="58" rx="13" fill="#1C2227"/>
+  <!-- Clock face -->
+  <circle cx="30" cy="33" r="18" fill="#13181C"/>
+  <!-- Yellow arc: ~270° clockwise from top to left -->
+  <path d="M30 15 A18 18 0 1 1 12 33" stroke="#FFC400" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- Arc terminus dot -->
+  <circle cx="12" cy="33" r="3" fill="#FFC400"/>
+  <!-- Crown button -->
+  <rect x="26" y="5" width="8" height="6" rx="2.5" fill="#FFC400"/>
+  <!-- Clock hand -->
+  <line x1="30" y1="33" x2="39" y2="18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Centre pivot -->
+  <circle cx="30" cy="33" r="2.5" fill="white" opacity="0.9"/>
+  <!-- Tick marks -->
+  <line x1="30" y1="16" x2="30" y2="19"  stroke="#4B5563" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="46" y1="24" x2="43.6" y2="25.4" stroke="#4B5563" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="30" y1="50" x2="30" y2="47"  stroke="#4B5563" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="14" y1="24" x2="16.4" y2="25.4" stroke="#4B5563" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Wordmark: dark text for light/white backgrounds, yellow "I" -->
+  <text x="70" y="44"
+    font-family="'Arial Black','Impact','Helvetica Neue',Arial,sans-serif"
+    font-size="36" font-weight="900" fill="#0F1215">ESTAD<tspan fill="#FFC400">I</tspan>A</text>
+</svg>

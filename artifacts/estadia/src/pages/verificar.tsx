@@ -92,8 +92,8 @@ export default function Verificar() {
           </div>
         </div>
         
-        <div className="mt-8 opacity-50">
-          <h2 className="font-display text-xl tracking-tighter">ESTADIA APP</h2>
+        <div className="mt-8 opacity-60">
+          <img src="/logo-light.svg" alt="ESTADIA" className="h-8" />
         </div>
       </div>
     </div>
