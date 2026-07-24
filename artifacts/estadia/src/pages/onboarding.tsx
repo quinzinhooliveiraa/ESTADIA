@@ -1,49 +1,80 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { Truck, MapPin, CheckCircle2, ChevronRight, Download, Share } from 'lucide-react';
+import { ChevronRight, Download, Loader2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { useDisplayMode } from '@/hooks/useDisplayMode';
 import { useBeforeInstallPrompt } from '@/hooks/useBeforeInstallPrompt';
 
-// ── Info slides data ────────────────────────────────────────────────────────
+// ── Info slides ──────────────────────────────────────────────────────────────
 
 const INFO_SLIDES = [
   {
-    icon: <Truck className="w-16 h-16 text-primary mb-6" />,
-    title: "Seu caminhão virou depósito deles?",
-    subtitle: "Passou de 5h esperando, eles te devem.",
-    description: "Você já sabe que a lei existe. O problema é provar. É isso que o app faz por você.",
+    visual: '🚛',
+    badge: '💤',
+    title: 'Seu caminhão\nvirou depósito?',
+    line: 'Passou de 5h — eles te devem.',
   },
   {
-    icon: <MapPin className="w-16 h-16 text-primary mb-6" />,
-    title: "O app é sua testemunha",
-    subtitle: "Registro que não dá pra apagar",
-    description: "Aperta CHEGUEI. O app grava hora e local por GPS — registro que não dá pra apagar nem discutir depois.",
+    visual: '📍',
+    badge: '🔒',
+    title: 'Aperta\nCHEGUEI.',
+    line: 'O app grava. Prova que não apaga.',
   },
   {
-    icon: <CheckCircle2 className="w-16 h-16 text-primary mb-6" />,
-    title: "Documento pronto pra mandar",
-    subtitle: "É só jogar no WhatsApp do embarcador.",
-    description: "Sai um documento com o valor calculado, o horário provado e a lei citada. É só mandar no WhatsApp do cara.",
+    visual: '📄',
+    badge: '💰',
+    title: 'Documento\npronto.',
+    line: 'Manda no WhatsApp do embarcador.',
   },
 ];
 
-const SKIP_COUNTDOWN = 7; // seconds before "Continuar sem instalar" becomes active
+const SKIP_COUNTDOWN = 7;
 
-// ── Install slide ───────────────────────────────────────────────────────────
+// ── Visual install step ──────────────────────────────────────────────────────
+
+function Step({
+  num,
+  icon,
+  label,
+  sub,
+}: {
+  num: number;
+  icon: string;
+  label: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-center gap-4">
+      {/* Number badge */}
+      <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+        <span className="text-primary font-display font-bold text-lg leading-none">{num}</span>
+      </div>
+      {/* Icon */}
+      <span className="text-4xl leading-none select-none shrink-0">{icon}</span>
+      {/* Label */}
+      <div className="flex flex-col min-w-0">
+        <span className="font-bold text-base text-foreground leading-tight">{label}</span>
+        {sub && <span className="text-sm text-muted-foreground mt-0.5 leading-tight">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Install slide ────────────────────────────────────────────────────────────
 
 function InstallSlide({ onFinish }: { onFinish: () => void }) {
   const deferredPrompt = useBeforeInstallPrompt();
   const [countdown, setCountdown] = useState(SKIP_COUNTDOWN);
   const [installing, setInstalling] = useState(false);
 
-  // Detect iOS (no beforeinstallprompt support)
+  // Detect platform
   const isIos =
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const hasOneTabInstall = !isIos && !!deferredPrompt;
+  const isAndroidManual = !isIos && !deferredPrompt;
 
-  // Countdown timer
   useEffect(() => {
     if (countdown <= 0) return;
     const id = setTimeout(() => setCountdown((c) => c - 1), 1000);
@@ -57,7 +88,6 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        // Give the browser a moment to process the install before navigating
         setTimeout(onFinish, 800);
         return;
       }
@@ -70,78 +100,127 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Content */}
-      <div className="flex-1 flex flex-col justify-center items-center text-center gap-6">
-        <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Download className="w-10 h-10 text-primary" />
-        </div>
+      <div className="flex-1 flex flex-col justify-center gap-7">
 
-        <div>
-          <h1 className="text-2xl font-display uppercase tracking-tight mb-2">
-            Instala o ESTADIA
-            <br />
-            na tela inicial
+        {/* Header */}
+        <div className="flex flex-col items-center text-center gap-3">
+          <span className="text-[80px] leading-none select-none">📲</span>
+          <h1 className="text-3xl font-display uppercase tracking-tight leading-tight">
+            Instala na<br />tela inicial
           </h1>
-          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-            <p>📍 Abre com um toque no pátio, sem abrir o navegador</p>
-            <p>📱 Funciona como um app de verdade</p>
-          </div>
+          <p className="text-base text-muted-foreground font-medium">
+            Abre com um toque. Sem abrir navegador.
+          </p>
         </div>
 
-        {/* iOS: share-sheet instruction */}
-        {isIos && (
-          <div className="w-full max-w-[280px] rounded-xl border border-border bg-muted/40 p-4 text-sm text-left space-y-2">
-            <p className="font-semibold text-foreground flex items-center gap-2">
-              <Share className="w-4 h-4" /> Como instalar no iOS:
-            </p>
-            <ol className="text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Toca em <span className="font-semibold">Compartilhar</span> <span className="font-bold">↑</span> na barra do Safari</li>
-              <li>Escolhe <span className="font-semibold">"Adicionar à Tela de Início"</span></li>
-            </ol>
-          </div>
-        )}
+        {/* Step-by-step card */}
+        <div className="flex flex-col gap-5 bg-card border border-card-border rounded-2xl px-5 py-6">
+
+          {hasOneTabInstall && (
+            /* Android with prompt — just point to the button */
+            <div className="flex flex-col items-center gap-3 py-2 text-center">
+              <span className="text-5xl select-none">👇</span>
+              <p className="font-bold text-lg">Aperta o botão verde aqui embaixo</p>
+              <p className="text-sm text-muted-foreground">
+                O celular vai confirmar — só aceita e pronto.
+              </p>
+            </div>
+          )}
+
+          {isAndroidManual && (
+            /* Android Chrome — manual install */
+            <>
+              <Step
+                num={1}
+                icon="⋮"
+                label="Toca nos três pontinhos"
+                sub="canto superior direito do Chrome"
+              />
+              <div className="border-t border-border ml-14" />
+              <Step
+                num={2}
+                icon="📲"
+                label='"Instalar aplicativo"'
+                sub='ou "Adicionar à tela inicial"'
+              />
+              <div className="border-t border-border ml-14" />
+              <Step
+                num={3}
+                icon="✅"
+                label="Pronto!"
+                sub="o ESTADIA aparece na tela inicial"
+              />
+            </>
+          )}
+
+          {isIos && (
+            /* iOS Safari */
+            <>
+              <Step
+                num={1}
+                icon="⬆️"
+                label="Toca em Compartilhar"
+                sub="barra inferior do Safari"
+              />
+              <div className="border-t border-border ml-14" />
+              <Step
+                num={2}
+                icon="🏠"
+                label='"Adicionar à Tela de Início"'
+                sub="rola a lista pra encontrar"
+              />
+              <div className="border-t border-border ml-14" />
+              <Step
+                num={3}
+                icon="✅"
+                label="Pronto!"
+                sub="o ESTADIA aparece na tela inicial"
+              />
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="pb-8 space-y-3">
-        {/* Install button — Android/Chrome only */}
-        {!isIos && deferredPrompt && (
+      {/* Buttons */}
+      <div className="pb-10 pt-6 flex flex-col gap-3">
+        {hasOneTabInstall && (
           <Button
             size="lg"
-            className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+            className="w-full h-16 text-xl font-bold bg-green-600 hover:bg-green-700 active:bg-green-800 text-white gap-3 shadow-lg shadow-green-700/25 rounded-2xl"
             onClick={handleInstall}
             disabled={installing}
           >
-            <Download className="w-5 h-5" />
-            {installing ? 'Instalando…' : 'INSTALAR APP'}
+            {installing ? (
+              <><Loader2 className="w-6 h-6 animate-spin" /> Instalando…</>
+            ) : (
+              <><Download className="w-6 h-6" /> INSTALAR AGORA</>
+            )}
           </Button>
         )}
 
-        {/* Skip button with countdown */}
         <Button
           variant="ghost"
           size="lg"
-          className="w-full h-12 text-muted-foreground"
+          className="w-full h-14 text-base text-muted-foreground"
           onClick={onFinish}
           disabled={!canSkip}
         >
           {canSkip
             ? 'Continuar sem instalar'
-            : `Continuar sem instalar (${countdown})`}
+            : `Continuar sem instalar (${countdown}s)`}
         </Button>
       </div>
     </div>
   );
 }
 
-// ── Main Onboarding component ───────────────────────────────────────────────
+// ── Main Onboarding ──────────────────────────────────────────────────────────
 
 export default function Onboarding() {
   const [slide, setSlide] = useState(0);
   const [, setLocation] = useLocation();
   const displayMode = useDisplayMode();
 
-  // Show the install slide only when running in a regular browser tab
   const showInstallSlide = displayMode === 'browser';
   const totalDots = showInstallSlide ? INFO_SLIDES.length + 1 : INFO_SLIDES.length;
   const lastInfoSlide = INFO_SLIDES.length - 1;
@@ -154,25 +233,36 @@ export default function Onboarding() {
 
   const isInstallSlide = slide === installSlideIndex;
 
+  const handleNext = () => {
+    if (slide < lastInfoSlide) {
+      setSlide((s) => s + 1);
+    } else if (showInstallSlide) {
+      setSlide(installSlideIndex);
+    } else {
+      handleFinish();
+    }
+  };
+
   return (
     <AppLayout showNav={false}>
-      <div className="flex flex-col h-[100dvh] p-6 relative">
-        {/* Skip — always visible, including on install slide */}
+      <div className="flex flex-col h-[100dvh] px-6 pt-4 pb-0 relative">
+
+        {/* Skip — always visible */}
         <button
           onClick={handleFinish}
-          className="absolute top-6 right-6 text-muted-foreground font-medium text-sm"
+          className="absolute top-5 right-6 text-muted-foreground font-semibold text-sm z-10 py-2 px-1"
         >
           Pular
         </button>
 
-        {/* Dot indicators */}
-        <div className="flex-shrink-0 flex justify-center pt-2 mb-8">
-          <div className="flex gap-2">
+        {/* Progress dots */}
+        <div className="flex-shrink-0 flex justify-center pt-1 mb-8">
+          <div className="flex gap-2 items-center">
             {Array.from({ length: totalDots }).map((_, i) => (
               <div
                 key={i}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === slide ? 'w-8 bg-primary' : 'w-2 bg-muted'
+                className={`h-2.5 rounded-full transition-all duration-300 ${
+                  i === slide ? 'w-10 bg-primary' : 'w-2.5 bg-muted'
                 }`}
               />
             ))}
@@ -180,56 +270,52 @@ export default function Onboarding() {
         </div>
 
         {isInstallSlide ? (
-          // Install slide takes full remaining space
           <div className="flex-1 flex flex-col">
             <InstallSlide onFinish={handleFinish} />
           </div>
         ) : (
-          // Info slides
           <>
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="text-center animate-in fade-in zoom-in duration-300 flex flex-col items-center">
-                {INFO_SLIDES[slide].icon}
-                <h1 className="text-3xl font-display uppercase tracking-tight mb-2">
-                  {INFO_SLIDES[slide].title}
-                </h1>
-                <h2 className="text-xl font-semibold text-muted-foreground mb-4">
-                  {INFO_SLIDES[slide].subtitle}
-                </h2>
-                <p className="text-foreground/80 leading-relaxed max-w-[280px]">
-                  {INFO_SLIDES[slide].description}
-                </p>
+            {/* Info slide */}
+            <div className="flex-1 flex flex-col justify-center items-center text-center">
+              <div
+                key={slide}
+                className="animate-in fade-in zoom-in duration-300 flex flex-col items-center gap-8 w-full"
+              >
+                {/* Main visual — large emoji with accent badge */}
+                <div className="relative inline-flex">
+                  <span className="text-[100px] leading-none select-none drop-shadow-sm">
+                    {INFO_SLIDES[slide].visual}
+                  </span>
+                  <span className="absolute -bottom-3 -right-5 text-[44px] leading-none select-none">
+                    {INFO_SLIDES[slide].badge}
+                  </span>
+                </div>
+
+                {/* Text block */}
+                <div className="flex flex-col gap-3 mt-2">
+                  <h1 className="text-[2.1rem] font-display uppercase tracking-tight leading-[1.1] whitespace-pre-line">
+                    {INFO_SLIDES[slide].title}
+                  </h1>
+                  <p className="text-xl text-muted-foreground font-medium leading-snug">
+                    {INFO_SLIDES[slide].line}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="pb-8">
-              {slide < lastInfoSlide ? (
-                <Button
-                  size="lg"
-                  className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={() => setSlide((s) => s + 1)}
-                >
-                  Próximo
-                  <ChevronRight className="ml-2 w-5 h-5" />
-                </Button>
-              ) : showInstallSlide ? (
-                <Button
-                  size="lg"
-                  className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={() => setSlide(installSlideIndex)}
-                >
-                  Próximo
-                  <ChevronRight className="ml-2 w-5 h-5" />
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  className="w-full h-14 text-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={handleFinish}
-                >
-                  Começar agora
-                </Button>
-              )}
+            {/* CTA button */}
+            <div className="pb-10 pt-6">
+              <Button
+                size="lg"
+                className="w-full h-16 text-xl font-bold rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 transition-transform"
+                onClick={handleNext}
+              >
+                {slide < lastInfoSlide || showInstallSlide ? (
+                  <>Próximo <ChevronRight className="ml-1 w-6 h-6" /></>
+                ) : (
+                  'COMEÇAR AGORA'
+                )}
+              </Button>
             </div>
           </>
         )}
