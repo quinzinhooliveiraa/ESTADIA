@@ -93,16 +93,27 @@ router.delete("/veiculos/:id", requireAuth, async (req: AuthRequest, res): Promi
     return;
   }
 
-  await db
-    .delete(veiculosTable)
-    .where(
-      and(
-        eq(veiculosTable.id, params.data.id),
-        eq(veiculosTable.motorista_id, motoristaId)
-      )
-    );
+  try {
+    await db
+      .delete(veiculosTable)
+      .where(
+        and(
+          eq(veiculosTable.id, params.data.id),
+          eq(veiculosTable.motorista_id, motoristaId)
+        )
+      );
 
-  res.json({ message: "Veículo excluído" });
+    res.json({ message: "Veículo excluído" });
+  } catch (err: any) {
+    // PostgreSQL foreign key violation: esperas referencing this vehicle
+    if (err?.code === "23503") {
+      res.status(409).json({
+        error: "Este veículo possui registros de estadia e não pode ser excluído.",
+      });
+      return;
+    }
+    throw err;
+  }
 });
 
 // PATCH /veiculos/:id/padrao

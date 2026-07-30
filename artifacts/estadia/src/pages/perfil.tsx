@@ -335,6 +335,13 @@ export default function Perfil() {
                 onClick={() => {
                   deleteVeiculo.mutate({ id: v.id }, {
                     onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVeiculosQueryKey() }),
+                    onError: (err: any) => {
+                      const msg =
+                        err?.response?.data?.error ??
+                        err?.message ??
+                        'Não foi possível excluir o veículo.';
+                      toast({ title: 'Erro ao excluir', description: msg, variant: 'destructive' });
+                    },
                   });
                 }}
               >
