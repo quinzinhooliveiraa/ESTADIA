@@ -616,10 +616,16 @@ router.post(
 // Handles both v1 (billing.paid, pixQrCode.paid) and v2 (subscription.*) events.
 //
 router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
-  const webhookSecret = process.env.ABACATEPAY_WEBHOOK_SECRET;
+  // Collect all configured secrets. v1 and v2 webhooks may carry different
+  // secrets if registered separately in the AbacatePay dashboard.
+  const webhookSecrets: string[] = [
+    process.env.ABACATEPAY_WEBHOOK_SECRET,
+    process.env.ABACATEPAY_WEBHOOK_SECRET_V2,
+  ].filter((s): s is string => !!s);
+
   const isProd = process.env.NODE_ENV === "production";
 
-  if (!webhookSecret) {
+  if (webhookSecrets.length === 0) {
     if (isProd) {
       logger.error("CRITICAL: ABACATEPAY_WEBHOOK_SECRET not set in production — rejecting");
       res.status(401).json({ error: "Unauthorized" });
@@ -638,10 +644,15 @@ router.post("/webhooks/abacatepay", async (req, res): Promise<void> => {
     }
 
     const rawBody: string = (req as any).rawBody ?? JSON.stringify(req.body);
-    const isHmacValid = verifyWebhookSignature(rawBody, signatureHeader, webhookSecret);
-    const isDirectValid = signatureHeader === webhookSecret; // v1 fallback
 
-    if (!isHmacValid && !isDirectValid) {
+    // Accept if ANY configured secret validates the signature (HMAC or direct).
+    const isValid = webhookSecrets.some(
+      (secret) =>
+        verifyWebhookSignature(rawBody, signatureHeader, secret) ||
+        signatureHeader === secret // v1 plain-token fallback
+    );
+
+    if (!isValid) {
       logger.warn({ ip: req.ip }, "AbacatePay webhook rejected: invalid signature");
       res.status(401).json({ error: "Unauthorized" });
       return;
