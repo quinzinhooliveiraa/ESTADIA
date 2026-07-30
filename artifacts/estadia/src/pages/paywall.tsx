@@ -222,52 +222,68 @@ export default function Paywall() {
               </div>
             </button>
 
-            {/* Cartão de crédito — disabled until account supports it */}
-            <div className={`rounded-2xl p-4 border-2 border-border bg-card opacity-50 relative`}>
+            {/* Cartão de crédito */}
+            <div
+              className={`rounded-2xl p-4 border-2 bg-card relative transition-all ${
+                cartaoOk
+                  ? selectedMetodo === 'cartao'
+                    ? 'border-primary ring-2 ring-primary/20 cursor-pointer'
+                    : 'border-border hover:border-primary/50 cursor-pointer'
+                  : 'border-border opacity-50 cursor-not-allowed'
+              }`}
+              onClick={() => cartaoOk && setSelectedMetodo('cartao')}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-muted-foreground" />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedMetodo === 'cartao' && cartaoOk ? 'bg-primary/20' : 'bg-secondary'}`}>
+                  <CreditCard className={`w-5 h-5 ${selectedMetodo === 'cartao' && cartaoOk ? 'text-primary' : 'text-muted-foreground'}`} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-sm">Cartão de crédito</p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
-                      Em breve
-                    </span>
+                    {!cartaoOk && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
+                        Em breve
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">Recorrência automática</p>
                 </div>
+                {selectedMetodo === 'cartao' && cartaoOk && (
+                  <Check className="w-5 h-5 text-primary shrink-0" />
+                )}
               </div>
-              {cartaoOk && (
-                <button
-                  className={`absolute inset-0 rounded-2xl ${selectedMetodo === 'cartao' ? 'ring-2 ring-primary border-2 border-primary' : ''}`}
-                  onClick={() => setSelectedMetodo('cartao')}
-                />
-              )}
             </div>
 
-            {/* PIX Automático — disabled until account supports it */}
-            <div className={`rounded-2xl p-4 border-2 border-border bg-card opacity-50 relative`}>
+            {/* PIX Automático */}
+            <div
+              className={`rounded-2xl p-4 border-2 bg-card relative transition-all ${
+                pixAutomaticoOk
+                  ? selectedMetodo === 'pix_automatico'
+                    ? 'border-primary ring-2 ring-primary/20 cursor-pointer'
+                    : 'border-border hover:border-primary/50 cursor-pointer'
+                  : 'border-border opacity-50 cursor-not-allowed'
+              }`}
+              onClick={() => pixAutomaticoOk && setSelectedMetodo('pix_automatico')}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-muted-foreground" />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedMetodo === 'pix_automatico' && pixAutomaticoOk ? 'bg-primary/20' : 'bg-secondary'}`}>
+                  <Zap className={`w-5 h-5 ${selectedMetodo === 'pix_automatico' && pixAutomaticoOk ? 'text-primary' : 'text-muted-foreground'}`} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-sm">PIX Automático</p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
-                      Em breve
-                    </span>
+                    {!pixAutomaticoOk && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wider">
+                        Em breve
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">Débito recorrente via PIX</p>
                 </div>
+                {selectedMetodo === 'pix_automatico' && pixAutomaticoOk && (
+                  <Check className="w-5 h-5 text-primary shrink-0" />
+                )}
               </div>
-              {pixAutomaticoOk && (
-                <button
-                  className={`absolute inset-0 rounded-2xl ${selectedMetodo === 'pix_automatico' ? 'ring-2 ring-primary border-2 border-primary' : ''}`}
-                  onClick={() => setSelectedMetodo('pix_automatico')}
-                />
-              )}
             </div>
           </div>
 
@@ -285,7 +301,9 @@ export default function Paywall() {
               {criarCheckout.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                `Pagar R$ ${preco} com PIX`
+                selectedMetodo === 'cartao'
+                ? `Pagar R$ ${preco} com Cartão`
+                : `Pagar R$ ${preco} com PIX`
               )}
             </Button>
             <button
