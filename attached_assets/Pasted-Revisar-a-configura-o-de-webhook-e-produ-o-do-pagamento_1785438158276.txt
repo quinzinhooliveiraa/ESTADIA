@@ -1,0 +1,42 @@
+Revisar a configuração de webhook e produção do pagamento AbacatePay
+antes do lançamento real, e corrigir o timing do botão "pular" na tela
+de instalação do PWA.
+
+Contexto: a conta de produção foi aprovada, as chaves de produção (v1
+e v2) já foram trocadas no Railway, e os webhooks v1 e v2 foram
+cadastrados no painel apontando para
+https://app.cobrarestadia.com.br/api/webhooks/abacatepay.
+
+## 1. Webhook e pagamento (verificar e corrigir se necessário)
+
+- Confirmar que o endpoint /api/webhooks/abacatepay aceita tanto os
+  eventos v1 (billing.paid, pixQrCode.paid) quanto v2
+  (subscription.completed, subscription.renewed,
+  subscription.payment_failed) — sem exigir secrets diferentes por
+  versão, OU, se os secrets forem diferentes, aceitar múltiplos
+  secrets válidos (variáveis ABACATEPAY_WEBHOOK_SECRET e
+  ABACATEPAY_WEBHOOK_SECRET_V2, testando a assinatura HMAC contra
+  ambos).
+- Confirmar que APP_ORIGIN está atualizado para
+  https://app.cobrarestadia.com.br (não mais o endereço antigo do
+  Railway nem www).
+- Confirmar que isSandbox() agora retorna false com as chaves de
+  produção (o banner de "modo de teste" não deve aparecer mais).
+- Testar mentalmente o fluxo completo: usuário assina PRO via PIX
+  avulso → paga de verdade → webhook v1 chega → handleV1PixPaid ativa
+  o PRO. Reportar qualquer ponto frágil nesse caminho.
+- Confirmar que GET /assinatura/metodos reflete corretamente que PIX
+  Automático e cartão ainda não estão disponíveis nesta conta
+  (aparecem como "em breve"), sem quebrar o checkout via PIX avulso.
+
+## 2. Tela de instalação do PWA — atraso no botão "pular"
+
+Hoje o botão "pular" aparece imediatamente na tela de instalação,
+antes do usuário sequer tentar instalar. Corrigir: o botão "pular" só
+deve aparecer/ficar clicável depois de 8 segundos na tela (dar tempo
+da pessoa notar e usar o botão de instalar de verdade primeiro). Antes
+disso, pode ficar oculto ou desabilitado visualmente (ex.: opacidade
+reduzida, sem cursor de clique). Não afetar o botão principal de
+instalar, que continua disponível a qualquer momento.
+
+Reportar o que foi encontrado e corrigido em cada item.

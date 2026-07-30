@@ -29,7 +29,7 @@ const INFO_SLIDES = [
   },
 ];
 
-const SKIP_COUNTDOWN = 7;
+const SKIP_COUNTDOWN = 8;
 
 // ── Visual install step ──────────────────────────────────────────────────────
 
@@ -260,6 +260,19 @@ export default function Onboarding() {
 
   const isInstallSlide = slide === installSlideIndex;
 
+  // Delay the top "Pular" button for 8 s when on the install slide so the
+  // user has time to notice and use the actual install button first.
+  const [topSkipReady, setTopSkipReady] = useState(false);
+  useEffect(() => {
+    if (!isInstallSlide) {
+      setTopSkipReady(false);
+      return;
+    }
+    setTopSkipReady(false);
+    const id = setTimeout(() => setTopSkipReady(true), SKIP_COUNTDOWN * 1000);
+    return () => clearTimeout(id);
+  }, [isInstallSlide]);
+
   const handleNext = () => {
     if (slide < lastInfoSlide) {
       setSlide((s) => s + 1);
@@ -274,10 +287,15 @@ export default function Onboarding() {
     <AppLayout showNav={false}>
       <div className="flex flex-col h-[100dvh] px-6 pt-4 pb-0 relative">
 
-        {/* Skip — always visible */}
+        {/* Skip — always visible on info slides; delayed on install slide */}
         <button
-          onClick={handleFinish}
-          className="absolute top-5 right-6 text-muted-foreground font-semibold text-sm z-10 py-2 px-1"
+          onClick={isInstallSlide && !topSkipReady ? undefined : handleFinish}
+          className={`absolute top-5 right-6 font-semibold text-sm z-10 py-2 px-1 transition-opacity duration-300 ${
+            isInstallSlide && !topSkipReady
+              ? 'opacity-30 cursor-default pointer-events-none'
+              : 'text-muted-foreground'
+          }`}
+          aria-disabled={isInstallSlide && !topSkipReady}
         >
           Pular
         </button>
