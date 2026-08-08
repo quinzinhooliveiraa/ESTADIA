@@ -10,6 +10,7 @@ import {
   useCreateVeiculo,
   useCreateEspera,
   useGetEsperasResumo,
+  useListCobrancas,
   useGetAssinatura,
 } from '@workspace/api-client-react';
 import { Truck, MapPin, Loader2, Navigation, X, Check, TriangleAlert, Clock } from 'lucide-react';
@@ -37,6 +38,7 @@ export default function Home() {
   const { data: uso } = useGetUsoMes();
   const { data: veiculos, isLoading: veiculosLoading } = useListVeiculos();
   const { data: resumo } = useGetEsperasResumo();
+  const { data: cobrancasList } = useListCobrancas();
   // Fetching assinatura triggers JIT auto-expire and provides the renewal warning
   const { data: assinatura } = useGetAssinatura();
 
@@ -180,6 +182,9 @@ export default function Home() {
 
   const isPro = perfil?.plano === 'pro_mensal' || perfil?.plano === 'pro_anual';
   const hasEsperaAtiva = resumo?.espera_ativa;
+  const totalARecuperar = cobrancasList
+    ?.filter(cobranca => cobranca.status_pagamento === 'pendente')
+    .reduce((total, cobranca) => total + cobranca.valor, 0) ?? 0;
   const isBusy = loadingGps || createEspera.isPending || createVeiculo.isPending;
 
   // Renewal / expiry banner state
@@ -259,6 +264,23 @@ export default function Home() {
         )}
 
         <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+
+          {resumo && resumo.total_esperas > 0 && (
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              <div className="summary-card bg-success/10 border border-success/30 rounded-2xl p-4 text-center flex flex-col items-center justify-center relative overflow-hidden">
+                <span className="text-xs font-bold text-success uppercase tracking-wider mb-1">Já recuperado</span>
+                <span className="summary-value font-display text-success">
+                  {resumo.total_recuperado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+              <div className="summary-card bg-primary/10 border border-primary/30 rounded-2xl p-4 text-center flex flex-col items-center justify-center relative overflow-hidden">
+                <span className="text-xs font-bold text-primary uppercase tracking-wider mb-1">A recuperar</span>
+                <span className="summary-value font-display text-primary">
+                  {totalARecuperar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* ── Vehicle selection ─────────────────────────────────── */}
           {hasVehicles ? (

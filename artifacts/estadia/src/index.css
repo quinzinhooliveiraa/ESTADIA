@@ -113,3 +113,11 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.summary-card {
+  container-type: inline-size;
+}
+
+.summary-card .summary-value {
+  font-size: clamp(0.75rem, 12cqw, 1.875rem);
+}

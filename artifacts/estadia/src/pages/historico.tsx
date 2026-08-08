@@ -34,6 +34,13 @@ export default function Historico() {
     return map;
   }, [cobrancasList]);
 
+  const totalARecuperar = useMemo(
+    () => cobrancasList
+      ?.filter(cobranca => cobranca.status_pagamento === 'pendente')
+      .reduce((total, cobranca) => total + cobranca.valor, 0) ?? 0,
+    [cobrancasList],
+  );
+
   const handleMarcarPaga = (cobrancaId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     marcarPaga.mutate({ id: cobrancaId }, {
@@ -51,14 +58,25 @@ export default function Historico() {
         <h1 className="text-2xl font-display text-primary mb-6">HISTÓRICO</h1>
 
         {loadingResumo ? (
-           <div className="h-24 bg-card rounded-2xl animate-pulse mb-6" />
+           <div className="grid grid-cols-2 gap-3 mb-8">
+             <div className="h-24 bg-card rounded-2xl animate-pulse" />
+             <div className="h-24 bg-card rounded-2xl animate-pulse" />
+           </div>
         ) : (
-          <div className="bg-success/10 border border-success/30 rounded-2xl p-5 mb-8 text-center flex flex-col items-center justify-center relative overflow-hidden">
-            <DollarSign className="absolute -right-4 -bottom-4 w-24 h-24 text-success/10" />
-            <span className="text-sm font-bold text-success uppercase tracking-wider mb-1">Total Recuperado</span>
-            <span className="text-4xl font-display text-success">
-              {resumo?.total_recuperado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </span>
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            <div className="summary-card bg-success/10 border border-success/30 rounded-2xl p-4 text-center flex flex-col items-center justify-center relative overflow-hidden">
+              <DollarSign className="absolute -right-4 -bottom-4 w-24 h-24 text-success/10" />
+              <span className="text-xs font-bold text-success uppercase tracking-wider mb-1">Total Recuperado</span>
+              <span className="summary-value font-display text-success">
+                {resumo?.total_recuperado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+            <div className="summary-card bg-primary/10 border border-primary/30 rounded-2xl p-4 text-center flex flex-col items-center justify-center relative overflow-hidden">
+              <span className="text-xs font-bold text-primary uppercase tracking-wider mb-1">A Recuperar</span>
+              <span className="summary-value font-display text-primary">
+                {totalARecuperar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
           </div>
         )}
 
