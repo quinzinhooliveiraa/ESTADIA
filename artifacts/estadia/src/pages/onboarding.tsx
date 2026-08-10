@@ -31,6 +31,8 @@ const INFO_SLIDES = [
 
 const SKIP_COUNTDOWN = 8;
 
+const INSTALL_SEEN_KEY = 'onboarding_install_visto';
+
 // ── Visual install step ──────────────────────────────────────────────────────
 
 function Step({
@@ -65,70 +67,42 @@ function Step({
 
 // ── Browser/platform detection ───────────────────────────────────────────────
 
-function detectBrowser() {
+function detectPlatform() {
   const ua = navigator.userAgent;
 
-  // iOS devices (iPhone, iPad, iPod — including iPad masquerading as MacIntel)
   const isIos =
     /iPad|iPhone|iPod/.test(ua) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   if (isIos) {
-    // On iOS, only Safari supports PWA install; Chrome/Firefox on iOS use WebKit
-    // but lack the share-to-homescreen shortcut in the same spot.
     const isIosSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
-    return { isIos: true, isIosSafari, browser: isIosSafari ? 'ios-safari' : 'ios-other' } as const;
+    return { platform: 'ios', isIosSafari } as const;
   }
 
-  // Android browsers
-  if (/SamsungBrowser/.test(ua)) return { isIos: false, browser: 'samsung' } as const;
-  if (/Firefox/.test(ua))        return { isIos: false, browser: 'firefox' } as const;
-  if (/Edg\//.test(ua))          return { isIos: false, browser: 'edge'    } as const;
-  // Chrome (and Chromium-based, including WebView)
-  return { isIos: false, browser: 'chrome' } as const;
+  if (/Android/.test(ua)) return { platform: 'android', isIosSafari: false } as const;
+  return { platform: 'other', isIosSafari: false } as const;
 }
 
 // ── Manual install steps per browser ────────────────────────────────────────
 
 type ManualSteps = { icon: string; label: string; sub?: string }[];
 
-function manualSteps(browser: ReturnType<typeof detectBrowser>['browser']): ManualSteps {
-  switch (browser) {
-    case 'ios-safari':
+function manualSteps(platform: ReturnType<typeof detectPlatform>['platform']): ManualSteps {
+  switch (platform) {
+    case 'ios':
       return [
-        { icon: '⬆️', label: 'Toca em Compartilhar',          sub: 'botão na barra inferior do Safari' },
-        { icon: '🏠', label: '"Adicionar à Tela de Início"',   sub: 'rola a lista pra encontrar' },
-        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+        { icon: '□↑', label: 'Toca no botão compartilhar □↑', sub: 'na barra do Safari' },
+        { icon: '＋', label: "Escolhe 'Adicionar à Tela de Início'" },
       ];
-    case 'ios-other':
+    case 'android':
       return [
-        { icon: '🌐', label: 'Abre no Safari',                 sub: 'Chrome/Firefox no iPhone não instala' },
-        { icon: '⬆️', label: 'Toca em Compartilhar',          sub: 'botão na barra inferior' },
-        { icon: '🏠', label: '"Adicionar à Tela de Início"',   sub: 'rola a lista pra encontrar' },
+        { icon: '⋮', label: 'Toca nos 3 pontinhos', sub: 'no canto superior direito' },
+        { icon: '＋', label: "Escolhe 'Adicionar à tela inicial'" },
       ];
-    case 'samsung':
+    default:
       return [
-        { icon: '☰',  label: 'Toca nas três linhas',           sub: 'canto inferior direito do Samsung Internet' },
-        { icon: '➕', label: '"Adicionar página a…"',          sub: 'depois "Tela inicial"' },
-        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
-      ];
-    case 'firefox':
-      return [
-        { icon: '⋮',  label: 'Toca nos três pontinhos',        sub: 'canto direito da barra do Firefox' },
-        { icon: '📲', label: '"Instalar"',                     sub: 'ou "Adicionar à tela inicial"' },
-        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
-      ];
-    case 'edge':
-      return [
-        { icon: '⋯',  label: 'Toca nos três pontinhos',        sub: 'barra inferior do Edge' },
-        { icon: '📲', label: '"Adicionar à tela inicial"',     sub: 'ou "Instalar aplicativo"' },
-        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
-      ];
-    default: // chrome
-      return [
-        { icon: '⋮',  label: 'Toca nos três pontinhos',        sub: 'canto superior direito do Chrome' },
-        { icon: '📲', label: '"Instalar aplicativo"',          sub: 'ou "Adicionar à tela inicial"' },
-        { icon: '✅', label: 'Pronto!',                         sub: 'ESTADIA aparece na tela inicial' },
+        { icon: '⌂', label: 'Abre o menu do navegador', sub: 'procura "Adicionar à tela inicial"' },
+        { icon: '＋', label: 'Confirma para instalar o app' },
       ];
   }
 }
@@ -140,10 +114,9 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
   const [countdown, setCountdown] = useState(SKIP_COUNTDOWN);
   const [installing, setInstalling] = useState(false);
 
-  const detected = detectBrowser();
-  // One-tap install only works on non-iOS browsers that fired beforeinstallprompt
-  const hasOneTabInstall = !detected.isIos && !!deferredPrompt;
-  const steps = manualSteps(detected.browser);
+  const detected = detectPlatform();
+  const hasOneTapInstall = detected.platform === 'android' && !!deferredPrompt;
+  const steps = manualSteps(detected.platform);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -167,53 +140,58 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
   }
 
   const canSkip = countdown <= 0;
+  const isIosOtherBrowser = detected.platform === 'ios' && !detected.isIosSafari;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 flex flex-col justify-center gap-7">
+    <div className="flex h-full flex-col rounded-3xl bg-[#0E1114] px-5 text-[#F5F6F7]">
+      <div className="flex flex-1 flex-col justify-center gap-6">
 
         {/* Header */}
-        <div className="flex flex-col items-center text-center gap-3">
-          <span className="text-[80px] leading-none select-none">📲</span>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[#FFC400]/15 text-5xl text-[#FFC400] shadow-[0_0_35px_-10px_rgba(255,196,0,0.7)]">
+            {detected.platform === 'ios' ? '□↑' : detected.platform === 'android' ? '⋮' : '＋'}
+          </div>
           <h1 className="text-3xl font-display uppercase tracking-tight leading-tight">
-            Instala na<br />tela inicial
+            Instala o app primeiro
           </h1>
-          <p className="text-base text-muted-foreground font-medium">
-            Abre com um toque. Sem abrir navegador.
+          <p className="max-w-xs text-base font-medium leading-snug text-[#F5F6F7]/70">
+            É rápido. Funciona sem internet e registra o GPS certinho.
           </p>
         </div>
 
-        {/* Step-by-step card */}
-        <div className="flex flex-col gap-5 bg-card border border-card-border rounded-2xl px-5 py-6">
-          {hasOneTabInstall ? (
-            /* One-tap install available — point to the green button below */
+        {/* Platform-specific install instructions */}
+        <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5">
+          {hasOneTapInstall ? (
             <div className="flex flex-col items-center gap-3 py-2 text-center">
-              <span className="text-5xl select-none">👇</span>
-              <p className="font-bold text-lg">Aperta o botão verde aqui embaixo</p>
-              <p className="text-sm text-muted-foreground">
-                O celular vai confirmar — só aceita e pronto.
-              </p>
+              <span className="text-5xl text-[#FFC400]">👇</span>
+              <p className="text-lg font-bold">Instala com um toque</p>
+              <p className="text-sm text-[#F5F6F7]/65">O Chrome vai confirmar — só aceita e pronto.</p>
             </div>
           ) : (
-            /* Manual install — steps specific to the detected browser */
             <>
               {steps.map((s, i) => (
                 <React.Fragment key={i}>
                   <Step num={i + 1} icon={s.icon} label={s.label} sub={s.sub} />
-                  {i < steps.length - 1 && <div className="border-t border-border ml-14" />}
+                  {i < steps.length - 1 && <div className="flex justify-center text-2xl leading-none text-[#FFC400]">↓</div>}
                 </React.Fragment>
               ))}
             </>
           )}
         </div>
+
+        {isIosOtherBrowser && (
+          <p className="rounded-xl border border-[#FFC400]/25 bg-[#FFC400]/10 px-4 py-3 text-center text-xs leading-relaxed text-[#F5F6F7]/80">
+            Só funciona no Safari. Se estiver em outro navegador, abre esse link no Safari primeiro.
+          </p>
+        )}
       </div>
 
       {/* Buttons */}
-      <div className="pb-10 pt-6 flex flex-col gap-3">
-        {hasOneTabInstall && (
+      <div className="flex flex-col gap-3 pb-10 pt-6">
+        {hasOneTapInstall && (
           <Button
             size="lg"
-            className="w-full h-16 text-xl font-bold bg-green-600 hover:bg-green-700 active:bg-green-800 text-white gap-3 shadow-lg shadow-green-700/25 rounded-2xl"
+            className="h-16 w-full rounded-2xl bg-[#FFC400] text-xl font-bold text-[#0E1114] shadow-lg shadow-[#FFC400]/20 hover:bg-[#e6b000] active:bg-[#d9a900]"
             onClick={handleInstall}
             disabled={installing}
           >
@@ -228,13 +206,13 @@ function InstallSlide({ onFinish }: { onFinish: () => void }) {
         <Button
           variant="ghost"
           size="lg"
-          className="w-full h-14 text-base text-muted-foreground"
+          className="h-12 w-full text-sm text-[#F5F6F7]/55 hover:text-[#F5F6F7]/80"
           onClick={onFinish}
           disabled={!canSkip}
         >
           {canSkip
-            ? 'Continuar sem instalar'
-            : `Continuar sem instalar (${countdown}s)`}
+            ? 'Pular por agora (não recomendado)'
+            : `Pular por agora (não recomendado) · ${countdown}s`}
         </Button>
       </div>
     </div>
@@ -248,7 +226,10 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
   const displayMode = useDisplayMode();
 
-  const showInstallSlide = displayMode === 'browser';
+  const [installSeen] = useState(
+    () => localStorage.getItem(INSTALL_SEEN_KEY) === 'true',
+  );
+  const showInstallSlide = displayMode === 'browser' && !installSeen;
   const totalDots = showInstallSlide ? INFO_SLIDES.length + 1 : INFO_SLIDES.length;
   const lastInfoSlide = INFO_SLIDES.length - 1;
   const installSlideIndex = INFO_SLIDES.length;
@@ -258,20 +239,12 @@ export default function Onboarding() {
     setLocation('/login');
   };
 
-  const isInstallSlide = slide === installSlideIndex;
+  const handleInstallFinish = () => {
+    localStorage.setItem(INSTALL_SEEN_KEY, 'true');
+    handleFinish();
+  };
 
-  // Delay the top "Pular" button for 8 s when on the install slide so the
-  // user has time to notice and use the actual install button first.
-  const [topSkipReady, setTopSkipReady] = useState(false);
-  useEffect(() => {
-    if (!isInstallSlide) {
-      setTopSkipReady(false);
-      return;
-    }
-    setTopSkipReady(false);
-    const id = setTimeout(() => setTopSkipReady(true), SKIP_COUNTDOWN * 1000);
-    return () => clearTimeout(id);
-  }, [isInstallSlide]);
+  const isInstallSlide = slide === installSlideIndex;
 
   const handleNext = () => {
     if (slide < lastInfoSlide) {
@@ -287,18 +260,15 @@ export default function Onboarding() {
     <AppLayout showNav={false}>
       <div className="flex flex-col h-[100dvh] px-6 pt-4 pb-0 relative">
 
-        {/* Skip — always visible on info slides; delayed on install slide */}
-        <button
-          onClick={isInstallSlide && !topSkipReady ? undefined : handleFinish}
-          className={`absolute top-5 right-6 font-semibold text-sm z-10 py-2 px-1 transition-opacity duration-300 ${
-            isInstallSlide && !topSkipReady
-              ? 'opacity-30 cursor-default pointer-events-none'
-              : 'text-muted-foreground'
-          }`}
-          aria-disabled={isInstallSlide && !topSkipReady}
-        >
-          Pular
-        </button>
+        {/* Skip is handled inside the install card, after the 8-second delay. */}
+        {!isInstallSlide && (
+          <button
+            onClick={handleFinish}
+            className="absolute right-6 top-5 z-10 px-1 py-2 text-sm font-semibold text-muted-foreground"
+          >
+            Pular
+          </button>
+        )}
 
         {/* Progress dots */}
         <div className="flex-shrink-0 flex justify-center pt-1 mb-8">
@@ -316,7 +286,7 @@ export default function Onboarding() {
 
         {isInstallSlide ? (
           <div className="flex-1 flex flex-col">
-            <InstallSlide onFinish={handleFinish} />
+            <InstallSlide onFinish={handleInstallFinish} />
           </div>
         ) : (
           <>
