@@ -779,7 +779,56 @@ async function handleV1PixPaid(event: string, data: any): Promise<void> {
   }
 
   if (rows.length === 0) {
-    logger.warn({ chargeId, externalId, event }, "v1 webhook: no matching assinatura");
+    const telefonePayload =
+      data?.customer?.cellphone ??
+      data?.billing?.customer?.cellphone ??
+      data?.charge?.customer?.cellphone;
+    let telefoneNormalizado = String(telefonePayload ?? "").replace(/\D/g, "");
+    if (telefoneNormalizado.length > 11 && telefoneNormalizado.startsWith("55")) {
+      telefoneNormalizado = telefoneNormalizado.slice(2);
+    }
+
+    if (telefoneNormalizado) {
+      const motoristas = await db.select().from(motoristasTable);
+      const motorista = motoristas.find((item) => {
+        let telefone = item.telefone.replace(/\D/g, "");
+        if (telefone.length > 11 && telefone.startsWith("55")) {
+          telefone = telefone.slice(2);
+        }
+        return telefone === telefoneNormalizado;
+      });
+
+      if (motorista) {
+        const amount = Number(data?.amount ?? data?.billing?.amount ?? 0);
+        const plano = amount <= 1990 ? "pro_mensal" : "pro_anual";
+        const assinaturaId = randomUUID();
+
+        await db.insert(assinaturasTable).values({
+          id: assinaturaId,
+          motorista_id: motorista.id,
+          plano,
+          status: "pendente",
+          expira_em: null,
+          abacatepay_billing_id: chargeId ?? null,
+          abacatepay_subscription_id: null,
+          metodo: "pix",
+        });
+
+        await activateAssinatura(
+          assinaturaId,
+          motorista.id,
+          plano,
+          chargeId ?? null,
+          `webhook:${event}:phone-fallback`,
+        );
+        return;
+      }
+    }
+
+    logger.warn(
+      { chargeId, externalId, event, data },
+      "v1 webhook: no matching assinatura or motorista by phone",
+    );
     return;
   }
 
