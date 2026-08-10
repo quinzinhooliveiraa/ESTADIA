@@ -372,6 +372,42 @@ router.get(
   },
 );
 
+// ── POST /admin/motoristas/:id/reset-cobranca-gratis ───────────────────────
+
+router.post(
+  "/admin/motoristas/:id/reset-cobranca-gratis",
+  requireAdmin,
+  async (req: AdminRequest, res): Promise<void> => {
+    const { id } = req.params;
+    const adminId = req.motoristaId!;
+
+    const motoristas = await db
+      .select({ id: motoristasTable.id })
+      .from(motoristasTable)
+      .where(
+        and(
+          eq(motoristasTable.id, id),
+          eq(motoristasTable.anonimizado, false),
+        ),
+      )
+      .limit(1);
+
+    if (motoristas.length === 0) {
+      res.status(404).json({ error: "Motorista não encontrado" });
+      return;
+    }
+
+    await db.insert(adminLogsTable).values({
+      id: randomUUID(),
+      admin_id: adminId,
+      acao: `reset_cobranca_gratis:motorista_id=${id}`,
+    });
+
+    req.log?.info({ adminId, motoristaId: id }, "Admin reset free billing usage");
+    res.json({ ok: true });
+  },
+);
+
 // ── PATCH /admin/motoristas/:id/assinatura ────────────────────────────────
 
 router.patch(

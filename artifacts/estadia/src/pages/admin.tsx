@@ -234,6 +234,7 @@ function Usuarios() {
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<MotoristaDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   async function load(b: string, o: number) {
     setLoading(true);
@@ -252,6 +253,20 @@ function Usuarios() {
   useEffect(() => { load(busca, offset); }, []);
 
   function search() { setOffset(0); load(busca, 0); }
+
+  async function resetCobrancaGratis(id: string) {
+    setResettingId(id);
+    try {
+      await apiFetch(`/admin/motoristas/${id}/reset-cobranca-gratis`, {
+        method: 'POST',
+      });
+      await load(busca, offset);
+    } catch (e) {
+      window.alert(`Erro ao resetar cobrança grátis: ${e}`);
+    } finally {
+      setResettingId(null);
+    }
+  }
 
   async function openDetail(id: string) {
     setDetailLoading(true);
@@ -309,14 +324,14 @@ function Usuarios() {
         <table className="w-full text-xs text-left">
           <thead>
             <tr className="border-b border-[#2a3040] text-[#8A9099]">
-              {['Nome', 'Telefone', 'Plano', 'Esperas', 'Cobranças', 'Cadastro', 'Último login'].map((h) => (
+              {['Nome', 'Telefone', 'Plano', 'Esperas', 'Cobranças', 'Cadastro', 'Último login', 'Ações'].map((h) => (
                 <th key={h} className="pb-2 pr-4 font-medium">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={7} className="py-4 text-[#8A9099]">Carregando...</td></tr>
+              <tr><td colSpan={8} className="py-4 text-[#8A9099]">Carregando...</td></tr>
             )}
             {!loading && rows.map((r) => (
               <tr
@@ -336,6 +351,20 @@ function Usuarios() {
                 </td>
                 <td className="py-2 pr-4 text-[#8A9099]">
                   {r.ultimo_login ? new Date(r.ultimo_login).toLocaleDateString('pt-BR') : '—'}
+                </td>
+                <td className="py-2 pr-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={resettingId === r.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetCobrancaGratis(r.id);
+                    }}
+                    className="border-[#FFC400]/40 text-[#FFC400] hover:bg-[#FFC400]/10 text-[11px] whitespace-nowrap"
+                  >
+                    {resettingId === r.id ? 'Resetando...' : 'Resetar cobrança grátis'}
+                  </Button>
                 </td>
               </tr>
             ))}

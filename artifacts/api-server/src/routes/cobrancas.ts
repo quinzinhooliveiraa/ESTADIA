@@ -6,8 +6,9 @@ import {
   veiculosTable,
   motoristasTable,
   tarifasTable,
+  adminLogsTable,
 } from "@workspace/db";
-import { eq, and, gte, count, desc } from "drizzle-orm";
+import { eq, and, gte, count, desc, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import {
@@ -152,10 +153,24 @@ router.post("/esperas/:id/cobranca", requireAuth, async (req: AuthRequest, res):
       .from(esperasTable)
       .where(eq(esperasTable.motorista_id, motoristaId));
 
+    const resetLogs = await db
+      .select({ created_at: adminLogsTable.created_at })
+      .from(adminLogsTable)
+      .where(eq(adminLogsTable.acao, `reset_cobranca_gratis:motorista_id=${motoristaId}`))
+      .orderBy(desc(adminLogsTable.created_at))
+      .limit(1);
+    const resetAt = resetLogs[0]?.created_at;
+    const usageStart = resetAt && resetAt > startOfMonth ? resetAt : startOfMonth;
+
     const monthCobrancas = await db
       .select({ count: count() })
       .from(cobrancasTable)
-      .where(gte(cobrancasTable.created_at, startOfMonth));
+      .where(
+        and(
+          inArray(cobrancasTable.espera_id, esperaIds.map((e) => e.id)),
+          gte(cobrancasTable.created_at, usageStart),
+        ),
+      );
 
     const cobrancasThisMonth = monthCobrancas[0]?.count ?? 0;
 
