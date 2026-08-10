@@ -10,6 +10,7 @@ import { getToken, clearToken } from '@/lib/token';
 import { InAppBrowserGate } from '@/components/InAppBrowserGate';
 import Onboarding from '@/pages/onboarding';
 import Login from '@/pages/login';
+import Simulacao from '@/pages/simulacao';
 import Home from '@/pages/home';
 import Espera from '@/pages/espera';
 import Paywall from '@/pages/paywall';
@@ -88,6 +89,7 @@ function Router() {
     <Switch>
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/login" component={Login} />
+      <Route path="/simulacao" component={Simulacao} />
       <Route path="/" component={Home} />
       <Route path="/espera/:id" component={Espera} />
       <Route path="/paywall" component={Paywall} />

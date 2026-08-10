@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRequestOtp, useVerifyOtp } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { setToken } from '@/lib/token';
+import { hasSeenSimulacao } from '@/lib/simulacao';
 import { Loader2 } from 'lucide-react';
 
 // D5: demo button only when VITE_DEMO_MODE=true
@@ -48,8 +49,9 @@ export default function Login() {
       if (!res.ok) throw new Error('Falha ao entrar em modo demo');
       const data = await res.json();
       setToken(data.token);
+      localStorage.setItem('estadia_last_motorista', JSON.stringify({ id: data.motorista.id }));
       localStorage.setItem('estadia_onboarding_seen', '1');
-      setLocation('/');
+      setLocation(hasSeenSimulacao(data.motorista.id) ? '/' : '/simulacao');
     } catch {
       toast({ title: 'Erro', description: 'Não foi possível entrar em modo demo.', variant: 'destructive' });
     } finally {
@@ -104,7 +106,8 @@ export default function Login() {
       {
         onSuccess: (data) => {
           setToken(data.token);
-          setLocation('/');
+          localStorage.setItem('estadia_last_motorista', JSON.stringify({ id: data.motorista.id }));
+          setLocation(hasSeenSimulacao(data.motorista.id) ? '/' : '/simulacao');
         },
         onError: () => {
           toast({ title: 'Código inválido', description: 'Verifique o código e tente novamente.', variant: 'destructive' });
