@@ -89,6 +89,14 @@ interface MotoristaDetail {
 }
 
 interface Tarifa { id: string; valor_ton_hora: number; vigente_desde: string }
+interface SimulacaoReajuste {
+  valor_anterior: number;
+  valor_novo: number;
+  inpc_acumulado: number;
+  periodo_inicio: string;
+  periodo_fim: string;
+  vigente_desde: string;
+}
 interface PagamentoRow {
   id: string; created_at: string; telefone: string; plano: string;
   valor: number; status: string; pago_em: string | null; charge_id: string;
@@ -722,6 +730,9 @@ function Tarifas() {
   const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [simulacao, setSimulacao] = useState<SimulacaoReajuste | null>(null);
+  const [simulando, setSimulando] = useState(false);
+  const [simulacaoErro, setSimulacaoErro] = useState('');
 
   async function load() {
     setLoading(true);
@@ -761,6 +772,23 @@ function Tarifas() {
   const parsedValor = parseFloat(valor.replace(',', '.'));
   const valid = !isNaN(parsedValor) && parsedValor > 0;
 
+  async function simularReajuste() {
+    setSimulando(true);
+    setSimulacaoErro('');
+    setSimulacao(null);
+    try {
+      setSimulacao(await apiFetch('/admin/tarifas/simular-reajuste'));
+    } catch (e) {
+      setSimulacaoErro(
+        e instanceof Error
+          ? `Não foi possível simular: ${e.message}`
+          : 'Não foi possível simular o reajuste.',
+      );
+    } finally {
+      setSimulando(false);
+    }
+  }
+
   return (
     <div className="space-y-4 max-w-2xl">
       {/* History */}
@@ -790,6 +818,43 @@ function Tarifas() {
           </tbody>
         </table>
       </div>
+
+      {/* INPC simulation */}
+      <Card className="bg-[#1a1e24] border-[#2a3040]">
+        <CardHeader className="pb-2 pt-4 px-4">
+          <CardTitle className="text-xs font-semibold text-[#8A9099] uppercase tracking-wider">
+            Reajuste anual pelo INPC
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          <Button
+            size="sm"
+            onClick={simularReajuste}
+            disabled={simulando}
+            className="bg-[#FFC400] text-black hover:bg-[#e6b000] text-xs"
+          >
+            {simulando ? 'Calculando...' : 'Simular próximo reajuste'}
+          </Button>
+          {simulacaoErro && <p className="text-xs text-red-400">{simulacaoErro}</p>}
+          {simulacao && (
+            <div className="bg-[#111417] rounded p-3 text-xs space-y-1">
+              <p className="text-[#8A9099]">
+                INPC acumulado ({simulacao.periodo_inicio} a {simulacao.periodo_fim}):{' '}
+                <strong className="text-white">
+                  {fmt(simulacao.inpc_acumulado * 100, 2)}%
+                </strong>
+              </p>
+              <p className="text-white">
+                {fmtBRL(simulacao.valor_anterior)} →{' '}
+                <strong className="text-[#FFC400]">{fmtBRL(simulacao.valor_novo)}</strong>
+              </p>
+              <p className="text-[#8A9099]">
+                Vigência prevista: {new Date(simulacao.vigente_desde).toLocaleDateString('pt-BR')}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* New tarifa form */}
       <Card className="bg-[#1a1e24] border-[#2a3040]">

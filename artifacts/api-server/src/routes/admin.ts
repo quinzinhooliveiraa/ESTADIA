@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAdmin, type AdminRequest } from "../middlewares/admin";
+import { calcularNovaTargia } from "../lib/reajuste-tarifa";
 
 const router: IRouter = Router();
 
@@ -533,6 +534,25 @@ router.get(
       .orderBy(desc(tarifasTable.vigente_desde));
 
     res.json({ tarifas });
+  },
+);
+
+router.get(
+  "/admin/tarifas/simular-reajuste",
+  requireAdmin,
+  async (req: AdminRequest, res): Promise<void> => {
+    try {
+      const simulacao = await calcularNovaTargia();
+      res.json(simulacao);
+    } catch (error) {
+      req.log?.error({ err: error }, "Falha ao simular reajuste da tarifa");
+      res.status(503).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível calcular o reajuste",
+      });
+    }
   },
 );
 
