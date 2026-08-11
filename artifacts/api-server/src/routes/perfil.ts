@@ -125,7 +125,7 @@ router.get("/perfil/uso", requireAuth, async (req: AuthRequest, res): Promise<vo
     cobrancasCount = allResult[0]?.count ?? 0;
   }
 
-  const limite = plano === "gratis" ? 1 : null;
+  const limite = plano === "gratis" ? 2 : null;
 
   res.json({
     cobrancas_geradas: cobrancasCount,

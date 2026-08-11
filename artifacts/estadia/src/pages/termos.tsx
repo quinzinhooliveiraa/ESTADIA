@@ -43,7 +43,7 @@ export default function Termos() {
         <section className="space-y-3">
           <h2 className="text-base font-bold text-foreground">3. Planos e preços</h2>
           <p>
-            O ESTADIA oferece um <strong className="text-foreground">Plano Grátis</strong> (até 1 cobrança por mês) e o <strong className="text-foreground">Plano PRO</strong> (cobranças ilimitadas), disponível nas modalidades mensal (R$ 19,90/mês) e anual (R$ 199,00/ano).
+            O ESTADIA oferece um <strong className="text-foreground">Plano Grátis</strong> (até 2 cobranças por mês) e o <strong className="text-foreground">Plano PRO</strong> (cobranças ilimitadas), disponível nas modalidades mensal (R$ 19,90/mês) e anual (R$ 199,00/ano).
           </p>
           <p>
             O PRO é renovado automaticamente ao fim de cada período. Você será informado antes de qualquer cobrança recorrente e pode cancelar a qualquer momento.
