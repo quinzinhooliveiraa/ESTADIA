@@ -26,6 +26,8 @@ tags:
     description: Rate management
   - name: public
     description: Public verification endpoints
+  - name: admin
+    description: Admin configuration endpoints
 
 paths:
   /healthz:
@@ -483,6 +485,51 @@ paths:
         "404":
           description: Not found
 
+  /public/configuracoes/advogado_whatsapp:
+    get:
+      operationId: getPublicAdvogadoWhatsapp
+      tags: [public]
+      summary: Get the public partner lawyer WhatsApp number
+      responses:
+        "200":
+          description: Partner lawyer WhatsApp configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicConfiguracao"
+
+  /admin/configuracoes:
+    get:
+      operationId: listAdminConfiguracoes
+      tags: [admin]
+      summary: List application configurations
+      responses:
+        "200":
+          description: Application configurations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfiguracoesList"
+    put:
+      operationId: updateAdminConfiguracao
+      tags: [admin]
+      summary: Create or update an application configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfiguracaoInput"
+      responses:
+        "200":
+          description: Updated configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Configuracao"
+        "400":
+          description: Invalid configuration
+
   # ─── SUBSCRIPTIONS ───────────────────────────────────────────────────────
   /assinatura:
     get:
@@ -633,6 +680,9 @@ components:
         plano:
           type: string
           enum: [gratis, pro_mensal, pro_anual]
+        is_admin:
+          type: boolean
+          description: Whether the authenticated user can access the admin panel.
         created_at:
           type: string
           format: date-time
@@ -905,6 +955,43 @@ components:
           type: string
           format: date-time
 
+    Configuracao:
+      type: object
+      required: [chave, valor]
+      properties:
+        chave:
+          type: string
+        valor:
+          type: string
+
+    ConfiguracaoInput:
+      type: object
+      required: [chave, valor]
+      properties:
+        chave:
+          type: string
+          minLength: 1
+        valor:
+          type: string
+
+    ConfiguracoesList:
+      type: object
+      required: [configuracoes]
+      properties:
+        configuracoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Configuracao"
+
+    PublicConfiguracao:
+      type: object
+      required: [chave, valor]
+      properties:
+        chave:
+          type: string
+        valor:
+          type: string
+
     # ─── SUBSCRIPTIONS ──────────────────────────────────────────────────────
     Assinatura:
       type: object
@@ -954,6 +1041,10 @@ components:
         plano:
           type: string
           enum: [pro_mensal, pro_anual]
+        metodo:
+          type: string
+          enum: [pix_avulso, pix_automatico, cartao]
+          description: Optional payment method; PIX avulso is the default.
 
     CheckoutResult:
       type: object
@@ -992,6 +1083,7 @@ components:
           type: string
         data:
           type: object
+          additionalProperties: true
           description: >
             v2 subscription event data. Shape varies by event type:
             subscription.completed / subscription.renewed contain

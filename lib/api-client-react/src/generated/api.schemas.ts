@@ -55,7 +55,8 @@ export interface Motorista {
   /** @nullable */
   tipo?: MotoristaTipo;
   plano: MotoristaPlano;
-  is_admin: boolean;
+  /** Whether the authenticated user can access the admin panel. */
+  is_admin?: boolean;
   created_at: string;
 }
 
@@ -206,6 +207,11 @@ export interface Cobranca {
   pdf_url?: string | null;
   token_verificacao: string;
   url_verificacao?: string;
+  /**
+     * Driver's full name from their profile, for document generation.
+     * @nullable
+     */
+  motorista_nome?: string | null;
   valor: number;
   status_pagamento: CobrancaStatusPagamento;
   /** @nullable */
@@ -240,6 +246,26 @@ export interface VerificacaoPublica {
   /** @nullable */
   lng?: number | null;
   registrado_em: string;
+}
+
+export interface Configuracao {
+  chave: string;
+  valor: string;
+}
+
+export interface ConfiguracaoInput {
+  /** @minLength 1 */
+  chave: string;
+  valor: string;
+}
+
+export interface ConfiguracoesList {
+  configuracoes: Configuracao[];
+}
+
+export interface PublicConfiguracao {
+  chave: string;
+  valor: string;
 }
 
 export type AssinaturaPlano = typeof AssinaturaPlano[keyof typeof AssinaturaPlano];
@@ -302,64 +328,56 @@ export const CheckoutInputPlano = {
   pro_anual: 'pro_anual',
 } as const;
 
+/**
+ * Optional payment method; PIX avulso is the default.
+ */
 export type CheckoutInputMetodo = typeof CheckoutInputMetodo[keyof typeof CheckoutInputMetodo];
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+
 export const CheckoutInputMetodo = {
   pix_avulso: 'pix_avulso',
-  cartao: 'cartao',
   pix_automatico: 'pix_automatico',
+  cartao: 'cartao',
 } as const;
 
 export interface CheckoutInput {
   plano: CheckoutInputPlano;
-  /** Payment method. Defaults to pix_avulso. */
+  /** Optional payment method; PIX avulso is the default. */
   metodo?: CheckoutInputMetodo;
 }
 
 export interface CheckoutResult {
+  /** AbacatePay checkout or billing ID (bill_... prefix) */
   billing_id: string;
-  /** PIX charge ID for v1 polling (= billing_id for pix_avulso) */
-  charge_id?: string | null;
-  /** Hosted checkout URL — present for cartao / pix_automatico (v2) */
+  /**
+     * Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions). Redirect the user here to complete payment via PIX or card.
+     * @nullable
+     */
   checkout_url?: string | null;
-  /** Base64 QR code — present for pix_avulso (live v1) and mock mode */
+  /**
+     * Base64 QR code image. Present in mock/dev mode or when AbacatePay returns inline PIX data (PIX Automático feature).
+     * @nullable
+     */
   pix_qr_code?: string | null;
-  /** PIX copia-e-cola string */
+  /**
+     * PIX copy-paste (brCode) string. Same availability as pix_qr_code.
+     * @nullable
+     */
   pix_copia_cola?: string | null;
-  plano?: 'pro_mensal' | 'pro_anual';
   valor: number;
-  expira_em?: string;
-  /** True when a real AbacatePay charge was created; false in mock/dev mode */
+  expira_em: string;
+  /** True when a real AbacatePay charge was created; false in mock/dev mode. */
   is_live?: boolean;
 }
 
-export type AbacatePayWebhookPayloadData = {
-  subscription?: {
-    id: string;
-    frequency?: string;
-    status?: string;
-  };
-  payment?: {
-    id: string;
-    status?: string;
-    methods?: string[];
-  };
-  checkout?: {
-    id?: string;
-    externalId?: string | null;
-  };
-  /** v1 PIX avulso fields */
-  id?: string;
-  externalId?: string | null;
-  status?: string;
-};
+/**
+ * v2 subscription event data. Shape varies by event type: subscription.completed / subscription.renewed contain { subscription, customer, payment, checkout }.
+ */
+export type AbacatePayWebhookPayloadData = { [key: string]: unknown };
 
 export interface AbacatePayWebhookPayload {
-  id?: string;
   event: string;
-  apiVersion?: number;
-  devMode?: boolean;
+  /** v2 subscription event data. Shape varies by event type: subscription.completed / subscription.renewed contain { subscription, customer, payment, checkout }. */
   data: AbacatePayWebhookPayloadData;
 }
 

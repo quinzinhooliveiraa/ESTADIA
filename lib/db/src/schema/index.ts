@@ -8,3 +8,4 @@ export * from "./tarifas";
 export * from "./sessions";
 export * from "./otps";
 export * from "./admin-logs";
+export * from "./configuracoes";

@@ -6,6 +6,8 @@ import {
   useGetEsperasResumo, 
   useListCobrancas,
   useMarcarCobrancaPaga, 
+  useGetPerfil,
+  useGetPublicAdvogadoWhatsapp,
   getListEsperasQueryKey, 
   getGetEsperasResumoQueryKey,
   getListCobrancasQueryKey
@@ -13,8 +15,15 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DollarSign, MapPin, Clock, ArrowRight, Loader2, Check } from 'lucide-react';
+import { DollarSign, MapPin, Clock, Loader2, Check, Scale, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+function getWhatsAppUrl(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return null;
+  const withCountryCode = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${withCountryCode}`;
+}
 
 export default function Historico() {
   const [, setLocation] = useLocation();
@@ -23,6 +32,8 @@ export default function Historico() {
   const { data: esperasList, isLoading: loadingList } = useListEsperas();
   const { data: cobrancasList } = useListCobrancas();
   const { data: resumo, isLoading: loadingResumo } = useGetEsperasResumo();
+  const { data: perfil } = useGetPerfil();
+  const { data: advogadoWhatsapp } = useGetPublicAdvogadoWhatsapp();
   
   const marcarPaga = useMarcarCobrancaPaga();
 
@@ -40,6 +51,17 @@ export default function Historico() {
       .reduce((total, cobranca) => total + cobranca.valor, 0) ?? 0,
     [cobrancasList],
   );
+
+  const isPro = perfil?.plano === 'pro_mensal' || perfil?.plano === 'pro_anual';
+  const hasEligibleEspera = useMemo(() => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return esperasList?.items.some((espera) => (
+      espera.status === 'encerrada' ||
+      (espera.status === 'aguardando' && new Date(espera.chegada_ts).getTime() <= sevenDaysAgo)
+    )) ?? false;
+  }, [esperasList]);
+  const shouldShowPartnerBanner = !isPro && hasEligibleEspera;
+  const whatsappUrl = advogadoWhatsapp?.valor ? getWhatsAppUrl(advogadoWhatsapp.valor) : null;
 
   const handleMarcarPaga = (cobrancaId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -150,6 +172,34 @@ export default function Historico() {
                 </div>
               );
             })}
+             {shouldShowPartnerBanner && (
+               <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card p-5 mt-2">
+                 <div className="flex items-start gap-3">
+                   <div className="rounded-xl bg-primary/15 p-2.5 shrink-0">
+                     <Scale className="w-5 h-5 text-primary" />
+                   </div>
+                   <div className="min-w-0">
+                     <p className="text-xs font-bold uppercase tracking-wider text-primary">Advogado parceiro</p>
+                     <h3 className="font-display text-lg text-foreground mt-1">Precisa de ajuda para cobrar?</h3>
+                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                       Fale com um advogado parceiro e entenda os próximos passos para buscar seus direitos.
+                     </p>
+                   </div>
+                 </div>
+                 {whatsappUrl ? (
+                   <Button asChild className="w-full mt-4 font-bold">
+                     <a href={whatsappUrl} target="_blank" rel="noreferrer">
+                       <MessageCircle className="w-4 h-4 mr-2" />
+                       QUERO AJUDA JURÍDICA
+                     </a>
+                   </Button>
+                 ) : (
+                   <p className="text-xs text-muted-foreground mt-4 border-t border-border/60 pt-3">
+                     Em breve, você poderá falar com um advogado parceiro por aqui.
+                   </p>
+                 )}
+               </div>
+             )}
           </div>
         )}
       </div>

@@ -11,6 +11,7 @@ import {
   veiculosTable,
   adminLogsTable,
   sessionsTable,
+  configuracoesTable,
 } from "@workspace/db";
 import {
   eq,
@@ -48,6 +49,58 @@ function maskPhone(telefone: string): string {
   }
   return telefone.slice(0, 3) + "****";
 }
+
+function getRouteParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+// ── GET /admin/configuracoes ───────────────────────────────────────────────
+
+router.get(
+  "/admin/configuracoes",
+  requireAdmin,
+  async (_req: AdminRequest, res): Promise<void> => {
+    const configuracoes = await db
+      .select()
+      .from(configuracoesTable)
+      .orderBy(configuracoesTable.chave);
+
+    res.json({ configuracoes });
+  },
+);
+
+// ── PUT /admin/configuracoes ───────────────────────────────────────────────
+
+router.put(
+  "/admin/configuracoes",
+  requireAdmin,
+  async (req: AdminRequest, res): Promise<void> => {
+    const { chave, valor } = req.body as {
+      chave?: unknown;
+      valor?: unknown;
+    };
+
+    if (typeof chave !== "string" || !chave.trim()) {
+      res.status(400).json({ error: "chave é obrigatória" });
+      return;
+    }
+    if (typeof valor !== "string") {
+      res.status(400).json({ error: "valor deve ser uma string" });
+      return;
+    }
+
+    const [configuracao] = await db
+      .insert(configuracoesTable)
+      .values({ chave: chave.trim(), valor: valor.trim() })
+      .onConflictDoUpdate({
+        target: configuracoesTable.chave,
+        set: { valor: valor.trim() },
+      })
+      .returning();
+
+    res.json(configuracao);
+  },
+);
 
 // ── GET /admin/metrics ────────────────────────────────────────────────────
 
@@ -295,7 +348,11 @@ router.get(
   "/admin/motoristas/:id",
   requireAdmin,
   async (req: AdminRequest, res): Promise<void> => {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
 
     const [motoristas, veiculos, esperas, assinaturas] = await Promise.all([
       db
@@ -379,7 +436,11 @@ router.post(
   "/admin/motoristas/:id/reset-cobranca-gratis",
   requireAdmin,
   async (req: AdminRequest, res): Promise<void> => {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
     const adminId = req.motoristaId!;
 
     const motoristas = await db
@@ -415,7 +476,11 @@ router.patch(
   "/admin/motoristas/:id/assinatura",
   requireAdmin,
   async (req: AdminRequest, res): Promise<void> => {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
     const adminId = req.motoristaId!;
 
     const { status, plano, expira_em } = req.body as {

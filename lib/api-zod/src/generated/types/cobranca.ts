@@ -15,7 +15,10 @@ export interface Cobranca {
   pdf_url?: string | null;
   token_verificacao: string;
   url_verificacao?: string;
-  /** Driver's full name from their profile, for document generation. @nullable */
+  /**
+     * Driver's full name from their profile, for document generation.
+     * @nullable
+     */
   motorista_nome?: string | null;
   valor: number;
   status_pagamento: CobrancaStatusPagamento;

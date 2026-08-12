@@ -5,11 +5,29 @@ import {
   esperasTable,
   veiculosTable,
   motoristasTable,
+  configuracoesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { VerificarCobrancaParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+// GET /public/configuracoes/advogado_whatsapp
+router.get(
+  "/public/configuracoes/advogado_whatsapp",
+  async (_req, res): Promise<void> => {
+    const configuracoes = await db
+      .select({ valor: configuracoesTable.valor })
+      .from(configuracoesTable)
+      .where(eq(configuracoesTable.chave, "advogado_whatsapp"))
+      .limit(1);
+
+    res.json({
+      chave: "advogado_whatsapp",
+      valor: configuracoes[0]?.valor ?? "",
+    });
+  },
+);
 
 // GET /public/verificar/:token
 router.get("/public/verificar/:token", async (req, res): Promise<void> => {

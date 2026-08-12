@@ -9,5 +9,6 @@ import type { AbacatePayWebhookPayloadData } from './abacatePayWebhookPayloadDat
 
 export interface AbacatePayWebhookPayload {
   event: string;
+  /** v2 subscription event data. Shape varies by event type: subscription.completed / subscription.renewed contain { subscription, customer, payment, checkout }. */
   data: AbacatePayWebhookPayloadData;
 }

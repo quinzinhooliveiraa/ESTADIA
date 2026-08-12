@@ -1006,6 +1006,87 @@ function Pagamentos() {
   );
 }
 
+// ── Configurações tab ──────────────────────────────────────────────────────
+
+function Configuracoes() {
+  const [whatsapp, setWhatsapp] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    apiFetch('/admin/configuracoes')
+      .then((data) => {
+        const config = (data.configuracoes as { chave: string; valor: string }[])
+          .find((item) => item.chave === 'advogado_whatsapp');
+        setWhatsapp(config?.valor ?? '');
+      })
+      .catch(() => setMsg({ type: 'err', text: 'Não foi possível carregar as configurações.' }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await apiFetch('/admin/configuracoes', {
+        method: 'PUT',
+        body: JSON.stringify({ chave: 'advogado_whatsapp', valor: whatsapp.trim() }),
+      });
+      setMsg({ type: 'ok', text: 'WhatsApp do advogado parceiro atualizado.' });
+    } catch {
+      setMsg({ type: 'err', text: 'Não foi possível salvar. Tente novamente.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="max-w-xl space-y-4">
+      <Card className="bg-[#1a1e24] border-[#2a3040]">
+        <CardHeader className="pb-2 pt-4 px-4">
+          <CardTitle className="text-xs font-semibold text-[#8A9099] uppercase tracking-wider">
+            Advogado parceiro
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          <p className="text-xs text-[#8A9099]">
+            Este número aparece no banner jurídico do Histórico para usuários elegíveis do plano grátis.
+            Informe com DDD, com ou sem o código do país.
+          </p>
+          <div>
+            <label className="block text-xs text-[#8A9099] mb-1" htmlFor="advogado-whatsapp">
+              WhatsApp
+            </label>
+            <Input
+              id="advogado-whatsapp"
+              inputMode="tel"
+              placeholder="(11) 99999-9999"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              disabled={loading || saving}
+              className="bg-[#111417] border-[#2a3040] text-white text-sm"
+            />
+          </div>
+          <Button
+            size="sm"
+            onClick={save}
+            disabled={loading || saving}
+            className="bg-[#FFC400] text-black hover:bg-[#e6b000] text-xs"
+          >
+            {saving ? 'Salvando...' : 'Salvar WhatsApp'}
+          </Button>
+          {msg && (
+            <p className={`text-xs ${msg.type === 'ok' ? 'text-[#27C46B]' : 'text-red-400'}`}>
+              {msg.text}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Admin page ────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -1038,13 +1119,17 @@ export default function AdminPage() {
       <main className="max-w-7xl mx-auto px-6 py-6">
         <Tabs defaultValue="dashboard">
           <TabsList className="bg-[#1a1e24] border border-[#2a3040] mb-6">
-            {(['dashboard', 'usuarios', 'tarifas', 'pagamentos'] as const).map((t) => (
+            {(['dashboard', 'usuarios', 'tarifas', 'pagamentos', 'configuracoes'] as const).map((t) => (
               <TabsTrigger
                 key={t}
                 value={t}
                 className="text-xs capitalize data-[state=active]:bg-[#FFC400] data-[state=active]:text-black"
               >
-                {t === 'usuarios' ? 'Usuários' : t.charAt(0).toUpperCase() + t.slice(1)}
+                 {t === 'usuarios'
+                   ? 'Usuários'
+                   : t === 'configuracoes'
+                     ? 'Configurações'
+                     : t.charAt(0).toUpperCase() + t.slice(1)}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -1053,6 +1138,7 @@ export default function AdminPage() {
           <TabsContent value="usuarios"><Usuarios /></TabsContent>
           <TabsContent value="tarifas"><Tarifas /></TabsContent>
           <TabsContent value="pagamentos"><Pagamentos /></TabsContent>
+          <TabsContent value="configuracoes"><Configuracoes /></TabsContent>
         </Tabs>
       </main>
     </div>

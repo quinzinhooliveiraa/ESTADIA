@@ -49,6 +49,7 @@ export const VerifyOtpResponse = zod.object({
   "nome": zod.string().nullish(),
   "tipo": zod.union([zod.literal('TAC autônomo'),zod.literal('ETC frota'),zod.literal(null)]).nullish(),
   "plano": zod.enum(['gratis', 'pro_mensal', 'pro_anual']),
+  "is_admin": zod.boolean().optional().describe('Whether the authenticated user can access the admin panel.'),
   "created_at": zod.coerce.date()
 })
 })
@@ -69,7 +70,7 @@ export const GetPerfilResponse = zod.object({
   "nome": zod.string().nullish(),
   "tipo": zod.union([zod.literal('TAC autônomo'),zod.literal('ETC frota'),zod.literal(null)]).nullish(),
   "plano": zod.enum(['gratis', 'pro_mensal', 'pro_anual']),
-  "is_admin": zod.boolean(),
+  "is_admin": zod.boolean().optional().describe('Whether the authenticated user can access the admin panel.'),
   "created_at": zod.coerce.date()
 })
 
@@ -88,6 +89,7 @@ export const UpdatePerfilResponse = zod.object({
   "nome": zod.string().nullish(),
   "tipo": zod.union([zod.literal('TAC autônomo'),zod.literal('ETC frota'),zod.literal(null)]).nullish(),
   "plano": zod.enum(['gratis', 'pro_mensal', 'pro_anual']),
+  "is_admin": zod.boolean().optional().describe('Whether the authenticated user can access the admin panel.'),
   "created_at": zod.coerce.date()
 })
 
@@ -448,6 +450,7 @@ export const GerarCobrancaResponse = zod.object({
   "pdf_url": zod.string().nullish(),
   "token_verificacao": zod.string(),
   "url_verificacao": zod.string().optional(),
+  "motorista_nome": zod.string().nullish().describe('Driver\'s full name from their profile, for document generation.'),
   "valor": zod.number(),
   "status_pagamento": zod.enum(['pendente', 'pago']),
   "enviada_via": zod.string().nullish(),
@@ -493,6 +496,7 @@ export const ListCobrancasResponseItem = zod.object({
   "pdf_url": zod.string().nullish(),
   "token_verificacao": zod.string(),
   "url_verificacao": zod.string().optional(),
+  "motorista_nome": zod.string().nullish().describe('Driver\'s full name from their profile, for document generation.'),
   "valor": zod.number(),
   "status_pagamento": zod.enum(['pendente', 'pago']),
   "enviada_via": zod.string().nullish(),
@@ -543,6 +547,7 @@ export const GetCobrancaResponse = zod.object({
   "pdf_url": zod.string().nullish(),
   "token_verificacao": zod.string(),
   "url_verificacao": zod.string().optional(),
+  "motorista_nome": zod.string().nullish().describe('Driver\'s full name from their profile, for document generation.'),
   "valor": zod.number(),
   "status_pagamento": zod.enum(['pendente', 'pago']),
   "enviada_via": zod.string().nullish(),
@@ -592,6 +597,7 @@ export const MarcarCobrancaPagaResponse = zod.object({
   "pdf_url": zod.string().nullish(),
   "token_verificacao": zod.string(),
   "url_verificacao": zod.string().optional(),
+  "motorista_nome": zod.string().nullish().describe('Driver\'s full name from their profile, for document generation.'),
   "valor": zod.number(),
   "status_pagamento": zod.enum(['pendente', 'pago']),
   "enviada_via": zod.string().nullish(),
@@ -651,6 +657,43 @@ export const VerificarCobrancaResponse = zod.object({
 
 
 /**
+ * @summary Get the public partner lawyer WhatsApp number
+ */
+export const GetPublicAdvogadoWhatsappResponse = zod.object({
+  "chave": zod.string(),
+  "valor": zod.string()
+})
+
+
+/**
+ * @summary List application configurations
+ */
+export const ListAdminConfiguracoesResponse = zod.object({
+  "configuracoes": zod.array(zod.object({
+  "chave": zod.string(),
+  "valor": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or update an application configuration
+ */
+
+
+
+export const UpdateAdminConfiguracaoBody = zod.object({
+  "chave": zod.string().min(1),
+  "valor": zod.string()
+})
+
+export const UpdateAdminConfiguracaoResponse = zod.object({
+  "chave": zod.string(),
+  "valor": zod.string()
+})
+
+
+/**
  * @summary Get current subscription status
  */
 export const GetAssinaturaResponse = zod.object({
@@ -660,14 +703,18 @@ export const GetAssinaturaResponse = zod.object({
   "status": zod.enum(['ativo', 'cancelado', 'expirado']),
   "expira_em": zod.coerce.date().nullish(),
   "metodo": zod.union([zod.literal('pix'),zod.literal('cartao'),zod.literal(null)]).nullish(),
-  "aviso_renovacao": zod.boolean().optional(),
+  "aviso_renovacao": zod.boolean().optional().describe('True when the subscription expires within 3 days'),
   "created_at": zod.coerce.date()
 })
 
+
+/**
+ * @summary Detect which payment methods are available for this account
+ */
 export const GetMetodosAssinaturaResponse = zod.object({
-  "pix_avulso": zod.boolean(),
-  "pix_automatico": zod.boolean(),
-  "cartao": zod.boolean(),
+  "pix_avulso": zod.boolean().describe('PIX one-time charge (v1) — always available'),
+  "pix_automatico": zod.boolean().describe('Recurring PIX via AbacatePay v2 — requires account feature flag'),
+  "cartao": zod.boolean().describe('Credit card via AbacatePay v2 — requires account feature flag')
 })
 
 
@@ -676,26 +723,17 @@ export const GetMetodosAssinaturaResponse = zod.object({
  */
 export const CriarCheckoutBody = zod.object({
   "plano": zod.enum(['pro_mensal', 'pro_anual']),
-  /** Payment method. Defaults to pix_avulso (v1 one-shot PIX QR). */
-  "metodo": zod.enum(['pix_avulso', 'cartao', 'pix_automatico']).optional()
+  "metodo": zod.enum(['pix_avulso', 'pix_automatico', 'cartao']).optional().describe('Optional payment method; PIX avulso is the default.')
 })
 
 export const CriarCheckoutResponse = zod.object({
-  /** AbacatePay charge/billing ID */
-  "billing_id": zod.string(),
-  /** PIX charge ID for v1 polling (same as billing_id for pix_avulso) */
-  "charge_id": zod.string().nullable().optional(),
-  /** AbacatePay hosted checkout URL. Present for cartao / pix_automatico (v2). */
-  "checkout_url": zod.string().nullable().optional(),
-  /** Base64 QR code image. Present for pix_avulso (live v1) and mock mode. */
-  "pix_qr_code": zod.string().nullable().optional(),
-  /** PIX copia-e-cola string. Same availability as pix_qr_code. */
-  "pix_copia_cola": zod.string().nullable().optional(),
-  "plano": zod.enum(['pro_mensal', 'pro_anual']).optional(),
+  "billing_id": zod.string().describe('AbacatePay checkout or billing ID (bill_... prefix)'),
+  "checkout_url": zod.string().nullish().describe('Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions). Redirect the user here to complete payment via PIX or card.\n'),
+  "pix_qr_code": zod.string().nullish().describe('Base64 QR code image. Present in mock\/dev mode or when AbacatePay returns inline PIX data (PIX Automático feature).\n'),
+  "pix_copia_cola": zod.string().nullish().describe('PIX copy-paste (brCode) string. Same availability as pix_qr_code.'),
   "valor": zod.number(),
   "expira_em": zod.coerce.date(),
-  /** True when a real AbacatePay charge was created; false in mock/dev mode */
-  "is_live": zod.boolean().optional()
+  "is_live": zod.boolean().optional().describe('True when a real AbacatePay charge was created; false in mock\/dev mode.')
 })
 
 
@@ -709,18 +747,17 @@ export const CancelarAssinaturaResponse = zod.object({
   "status": zod.enum(['ativo', 'cancelado', 'expirado']),
   "expira_em": zod.coerce.date().nullish(),
   "metodo": zod.union([zod.literal('pix'),zod.literal('cartao'),zod.literal(null)]).nullish(),
+  "aviso_renovacao": zod.boolean().optional().describe('True when the subscription expires within 3 days'),
   "created_at": zod.coerce.date()
 })
 
 
 /**
- * @summary AbacatePay payment webhook (v2 subscription events)
- * event: subscription.completed | subscription.renewed |
- *        subscription.payment_failed | subscription.cancelled
+ * @summary AbacatePay payment webhook
  */
 export const AbacatePayWebhookBody = zod.object({
   "event": zod.string(),
-  "data": zod.record(zod.string(), zod.unknown())
+  "data": zod.record(zod.string(), zod.unknown()).describe('v2 subscription event data. Shape varies by event type: subscription.completed \/ subscription.renewed contain { subscription, customer, payment, checkout }.\n')
 })
 
 export const AbacatePayWebhookResponse = zod.unknown()

@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AbacatePayWebhookPayloadData = {
-  id?: string;
-  status?: string;
-};
+/**
+ * v2 subscription event data. Shape varies by event type: subscription.completed / subscription.renewed contain { subscription, customer, payment, checkout }.
+ */
+export type AbacatePayWebhookPayloadData = { [key: string]: unknown };

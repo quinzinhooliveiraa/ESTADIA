@@ -22,12 +22,14 @@ import type {
 import type {
   AbacatePayWebhookPayload,
   Assinatura,
-  MetodosAssinatura,
   AuthSession,
   CheckoutInput,
   CheckoutResult,
   Cobranca,
   CobrancaInput,
+  Configuracao,
+  ConfiguracaoInput,
+  ConfiguracoesList,
   EncerrarEsperaInput,
   Espera,
   EsperaInput,
@@ -37,12 +39,14 @@ import type {
   FotoResult,
   HealthStatus,
   ListEsperasParams,
+  MetodosAssinatura,
   Motorista,
   MotoristaUpdate,
   OtpRequest,
   OtpRequestResult,
   OtpVerify,
   PaywallError,
+  PublicConfiguracao,
   Tarifa,
   UsoMes,
   Veiculo,
@@ -1929,6 +1933,231 @@ export function useVerificarCobranca<TData = Awaited<ReturnType<typeof verificar
 
 
 
+export const getGetPublicAdvogadoWhatsappUrl = () => {
+
+
+
+
+  return `/api/public/configuracoes/advogado_whatsapp`
+}
+
+/**
+ * @summary Get the public partner lawyer WhatsApp number
+ */
+export const getPublicAdvogadoWhatsapp = async ( options?: RequestInit): Promise<PublicConfiguracao> => {
+
+  return customFetch<PublicConfiguracao>(getGetPublicAdvogadoWhatsappUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicAdvogadoWhatsappQueryKey = () => {
+    return [
+    `/api/public/configuracoes/advogado_whatsapp`
+    ] as const;
+    }
+
+
+export const getGetPublicAdvogadoWhatsappQueryOptions = <TData = Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicAdvogadoWhatsappQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>> = ({ signal }) => getPublicAdvogadoWhatsapp({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicAdvogadoWhatsappQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>>
+export type GetPublicAdvogadoWhatsappQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the public partner lawyer WhatsApp number
+ */
+
+export function useGetPublicAdvogadoWhatsapp<TData = Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicAdvogadoWhatsapp>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicAdvogadoWhatsappQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminConfiguracoesUrl = () => {
+
+
+
+
+  return `/api/admin/configuracoes`
+}
+
+/**
+ * @summary List application configurations
+ */
+export const listAdminConfiguracoes = async ( options?: RequestInit): Promise<ConfiguracoesList> => {
+
+  return customFetch<ConfiguracoesList>(getListAdminConfiguracoesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminConfiguracoesQueryKey = () => {
+    return [
+    `/api/admin/configuracoes`
+    ] as const;
+    }
+
+
+export const getListAdminConfiguracoesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminConfiguracoes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminConfiguracoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminConfiguracoesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminConfiguracoes>>> = ({ signal }) => listAdminConfiguracoes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminConfiguracoes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminConfiguracoesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminConfiguracoes>>>
+export type ListAdminConfiguracoesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List application configurations
+ */
+
+export function useListAdminConfiguracoes<TData = Awaited<ReturnType<typeof listAdminConfiguracoes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminConfiguracoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminConfiguracoesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminConfiguracaoUrl = () => {
+
+
+
+
+  return `/api/admin/configuracoes`
+}
+
+/**
+ * @summary Create or update an application configuration
+ */
+export const updateAdminConfiguracao = async (configuracaoInput: ConfiguracaoInput, options?: RequestInit): Promise<Configuracao> => {
+
+  return customFetch<Configuracao>(getUpdateAdminConfiguracaoUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(configuracaoInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminConfiguracaoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfiguracao>>, TError,{data: BodyType<ConfiguracaoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfiguracao>>, TError,{data: BodyType<ConfiguracaoInput>}, TContext> => {
+
+const mutationKey = ['updateAdminConfiguracao'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminConfiguracao>>, {data: BodyType<ConfiguracaoInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminConfiguracao(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminConfiguracaoMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminConfiguracao>>>
+    export type UpdateAdminConfiguracaoMutationBody = BodyType<ConfiguracaoInput>
+    export type UpdateAdminConfiguracaoMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or update an application configuration
+ */
+export const useUpdateAdminConfiguracao = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminConfiguracao>>, TError,{data: BodyType<ConfiguracaoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminConfiguracao>>,
+        TError,
+        {data: BodyType<ConfiguracaoInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminConfiguracaoMutationOptions(options));
+    }
+
 export const getGetAssinaturaUrl = () => {
 
 
@@ -2006,41 +2235,82 @@ export function useGetAssinatura<TData = Awaited<ReturnType<typeof getAssinatura
 
 
 
-// ── GET /assinatura/metodos ───────────────────────────────────────────────────
+export const getGetMetodosAssinaturaUrl = () => {
 
-export const getGetMetodosAssinaturaUrl = () => `/api/assinatura/metodos`;
 
-export const getMetodosAssinatura = async (options?: RequestInit): Promise<MetodosAssinatura> => {
-  return customFetch<MetodosAssinatura>(getGetMetodosAssinaturaUrl(), {
+
+
+  return `/api/assinatura/metodos`
+}
+
+/**
+ * @summary Detect which payment methods are available for this account
+ */
+export const getMetodosAssinatura = async ( options?: RequestInit): Promise<MetodosAssinatura> => {
+
+  return customFetch<MetodosAssinatura>(getGetMetodosAssinaturaUrl(),
+  {
     ...options,
-    method: 'GET',
-  });
-};
+    method: 'GET'
 
-export const getGetMetodosAssinaturaQueryKey = () => ['/api/assinatura/metodos'] as const;
 
-export const getGetMetodosAssinaturaQueryOptions = <TData = Awaited<ReturnType<typeof getMetodosAssinatura>>, TError = ErrorType<unknown>>(
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
+  }
+);}
+
+
+
+
+
+export const getGetMetodosAssinaturaQueryKey = () => {
+    return [
+    `/api/assinatura/metodos`
+    ] as const;
+    }
+
+
+export const getGetMetodosAssinaturaQueryOptions = <TData = Awaited<ReturnType<typeof getMetodosAssinatura>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getGetMetodosAssinaturaQueryKey();
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMetodosAssinatura>>> = ({ signal }) =>
-    getMetodosAssinatura({ signal, ...requestOptions });
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData> & { queryKey: QueryKey };
-};
 
-export type GetMetodosAssinaturaQueryResult = NonNullable<Awaited<ReturnType<typeof getMetodosAssinatura>>>;
-export type GetMetodosAssinaturaQueryError = ErrorType<unknown>;
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMetodosAssinaturaQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMetodosAssinatura>>> = ({ signal }) => getMetodosAssinatura({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMetodosAssinaturaQueryResult = NonNullable<Awaited<ReturnType<typeof getMetodosAssinatura>>>
+export type GetMetodosAssinaturaQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Detect which payment methods are available for this account
+ */
 
 export function useGetMetodosAssinatura<TData = Awaited<ReturnType<typeof getMetodosAssinatura>>, TError = ErrorType<unknown>>(
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData>; request?: SecondParameter<typeof customFetch> }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetMetodosAssinaturaQueryOptions(options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetodosAssinatura>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMetodosAssinaturaQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
 
 export const getCriarCheckoutUrl = () => {
 

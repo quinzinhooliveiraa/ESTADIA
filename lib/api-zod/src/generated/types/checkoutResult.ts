@@ -7,14 +7,25 @@
  */
 
 export interface CheckoutResult {
+  /** AbacatePay checkout or billing ID (bill_... prefix) */
   billing_id: string;
-  /** AbacatePay v2 hosted checkout URL. Present in live mode. */
+  /**
+     * Hosted AbacatePay checkout URL. Present in live mode (v2 subscriptions). Redirect the user here to complete payment via PIX or card.
+     * @nullable
+     */
   checkout_url?: string | null;
-  /** Base64 QR code image. Present in mock/dev mode or PIX Automático. */
+  /**
+     * Base64 QR code image. Present in mock/dev mode or when AbacatePay returns inline PIX data (PIX Automático feature).
+     * @nullable
+     */
   pix_qr_code?: string | null;
-  /** PIX copia-e-cola string. Same availability as pix_qr_code. */
+  /**
+     * PIX copy-paste (brCode) string. Same availability as pix_qr_code.
+     * @nullable
+     */
   pix_copia_cola?: string | null;
   valor: number;
   expira_em: Date;
+  /** True when a real AbacatePay charge was created; false in mock/dev mode. */
   is_live?: boolean;
 }

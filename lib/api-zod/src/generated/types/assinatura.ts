@@ -18,5 +18,7 @@ export interface Assinatura {
   expira_em?: Date | null;
   /** @nullable */
   metodo?: AssinaturaMetodo;
+  /** True when the subscription expires within 3 days */
+  aviso_renovacao?: boolean;
   created_at: Date;
 }

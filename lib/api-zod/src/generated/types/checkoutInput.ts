@@ -5,8 +5,11 @@
  * ESTADIA API — detention time tracking and billing for truck drivers
  * OpenAPI spec version: 0.1.0
  */
+import type { CheckoutInputMetodo } from './checkoutInputMetodo';
 import type { CheckoutInputPlano } from './checkoutInputPlano';
 
 export interface CheckoutInput {
   plano: CheckoutInputPlano;
+  /** Optional payment method; PIX avulso is the default. */
+  metodo?: CheckoutInputMetodo;
 }

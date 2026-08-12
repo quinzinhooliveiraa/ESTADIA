@@ -16,5 +16,7 @@ export interface Motorista {
   /** @nullable */
   tipo?: MotoristaTipo;
   plano: MotoristaPlano;
+  /** Whether the authenticated user can access the admin panel. */
+  is_admin?: boolean;
   created_at: Date;
 }
